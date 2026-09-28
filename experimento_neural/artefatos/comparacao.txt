@@ -1,0 +1,13 @@
+Os dois modelos usaram a AND bipolar, pesos iniciais em zero, η = 0,1 e a mesma ordem fixa.
+O Perceptron mede erros após o sinal, no instante em que cada amostra é visitada.
+Sua curva começou com 2 erros e terminou com 0, após 4 épocas.
+A contagem discreta muda em saltos; corrigir uma amostra pode prejudicar outra e tornar a curva irregular.
+O Adaline ajusta os pesos pelo erro linear d−u, sem aplicar sinal durante as atualizações.
+O SSE passou de 3.51828232 para 1.01822337 ao longo de 100 épocas.
+Cada SSE foi recalculado nas quatro amostras usando os pesos finais daquela época.
+Foram observados 55 aumentos de SSE entre épocas; o último |ΔSSE| foi 0.0000206593.
+O Adaline parou por 'limite_epocas', com tolerância de 10⁻⁶ e limite de 100 épocas.
+Com o sinal u ≥ 0 → +1 na predição, ambos classificaram corretamente as quatro combinações.
+As retas e os pesos diferem; SSE residual não significa necessariamente erro de classificação.
+A menor |u| do Perceptron foi 5.551e-17; arredondar os pesos pode alterar a classe na fronteira.
+O SSE é contínuo e quadrático nos pesos: a curva tende a ser suave, sem garantia de queda monotônica no treino por amostra.

@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+node_modules/
+dist/
+test-results/
+playwright-report/
+# Configurações locais e credenciais
+.env
+.env.*
+!.env.example
+
+# Artefatos locais de desenvolvimento
+.ipynb_checkpoints/
+.coverage
+htmlcov/
+.DS_Store
+Thumbs.db

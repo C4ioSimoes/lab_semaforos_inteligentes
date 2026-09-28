@@ -1,0 +1,6 @@
+fastapi==0.115.12
+anyio==4.15.1
+pydantic==2.11.3
+uvicorn==0.34.2
+websockets==15.0.1
+swiplserver==1.0.2
