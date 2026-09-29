@@ -74,17 +74,19 @@ def test_entrada_ocupada_aguarda_sem_sobreposicao():
     for i in range(3):
         motor.receber_comando(comando("L", str(i)), lambda resposta: None)
     estado = motor.avancar()
-    assert len(estado.participantes) == 1
-    assert estado.filas["externas"]["L"] == 2
-    assert len(estado.solicitacoes) == 2
+    assert len(estado.participantes) == 2
+    assert {p.faixa for p in estado.participantes} == {"externa", "interna"}
+    assert estado.filas["externas"]["L"] == 1
+    assert len(estado.solicitacoes) == 1
     for _ in range(30):
         estado = motor.avancar()
-        carros = sorted(estado.participantes, key=lambda p: p.posicao.x)
-        for a, b in zip(carros, carros[1:]):
-            assert b.posicao.x - a.posicao.x >= 6 - 1e-9
+        for faixa in ("externa", "interna"):
+            carros = sorted((p for p in estado.participantes if p.faixa == faixa), key=lambda p: p.posicao.x)
+            for a, b in zip(carros, carros[1:]):
+                assert b.posicao.x - a.posicao.x >= 6 - 1e-9
     assert len(estado.participantes) == 3
     assert estado.solicitacoes == []
-    assert estado.participantes[1].instante_inserido > estado.participantes[1].instante_solicitado
+    assert estado.participantes[2].instante_inserido > estado.participantes[2].instante_solicitado
 
 
 def test_vermelho_retem_carro_e_registra_inicio_de_espera_uma_vez():

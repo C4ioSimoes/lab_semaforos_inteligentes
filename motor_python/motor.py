@@ -12,15 +12,16 @@ from pydantic import ValidationError
 
 from .modelos import (
     Comando, ConfirmacaoComando, Evento, Instantaneo, ParametrosInsercao,
-    Participante, RespostaComando, ParametrosPedestre, ConfiguracaoControlador, ConfiguracaoNeural, Decisao,
+    Participante, RespostaComando, ParametrosPedestre, ConfiguracaoControlador, ConfiguracaoNeural, ConfiguracaoOperacao, ParametrosReset, Decisao,
 )
-from .movimento import DISTANCIA_RETENCAO, FOLGA_RETENCAO, PERFIS, TRAJETORIAS, BORDA_VIA, ORIGEM_TRAJETORIA
+from .movimento import DISTANCIA_RETENCAO, FOLGA_RETENCAO, PERFIS, TRAJETORIAS, BORDA_VIA, ORIGEM_TRAJETORIA, FAIXAS, TRAJETORIAS_POR_FAIXA
 from .gerador import ConfiguracaoGerador, GeradorDemanda
 from .pedestres import ACESSOS, DIMENSOES_PEDESTRE, posicoes_acesso
 from .pedestres import VELOCIDADE_PEDESTRE, percurso, perto_percurso, passo_livre
 from .controle import ConfiguracaoControle, MaquinaSemaforica, Proposta, MOVIMENTOS, PEDESTRES
 from .metricas import Metricas
 from .neural import AvaliadoresNeurais, ARQUIVO_PESOS
+from .transito import ControleTransito
 from controladores import criar_controlador
 from controladores.adaptador_prolog import FalhaProlog
 from controladores.contratos import Estado as EstadoDecisao, Fase, Solicitacao, Avaliacao
@@ -34,7 +35,7 @@ Responder = Callable[[RespostaComando], None]
 @dataclass
 class RegistroComando:
     comando: Comando
-    parametros: ParametrosInsercao | ParametrosPedestre | ConfiguracaoGerador | ConfiguracaoControlador | ConfiguracaoNeural
+    parametros: ParametrosInsercao | ParametrosPedestre | ConfiguracaoGerador | ConfiguracaoControlador | ConfiguracaoNeural | ConfiguracaoOperacao | ParametrosReset
     respostas: list[Responder] = field(default_factory=list)
     resultado: RespostaComando | None = None
 
@@ -48,11 +49,13 @@ class Motor:
         self._step = 0
         self._assinantes: set[asyncio.Queue[MensagemMotor | None]] = set()
         self._comandos: dict[str, RegistroComando] = {}
+        self._resets_confirmados: dict[str, RegistroComando] = {}
         self._pendentes: deque[str] = deque()
         self._entradas: dict[str, deque[Participante]] = {origem: deque() for origem in (*TRAJETORIAS, *ACESSOS)}
         self._participantes: dict[str, Participante] = {}
         self._passos_insercao: dict[str, int] = {}
         self._distancias: dict[str, float] = {}
+        self._proxima_faixa = {origem: FAIXAS[0] for origem in TRAJETORIAS}
         self._eventos: list[Evento] = []
         self._sequencia_participante = 0
         self.gerador = GeradorDemanda()
@@ -66,6 +69,9 @@ class Motor:
         self.controlador = criar_controlador("baseline", self.controle.configuracao)
         self.neurais = AvaliadoresNeurais(arquivo_pesos)
         self.modelo_neural = "AND_referencia"
+        self.operacao = ConfiguracaoOperacao()
+        self.transito = ControleTransito()
+        self._diagnostico_transito = None
         self._ultima_decisao: Decisao | None = None
         self._falha_controlador: str | None = None
         self._assinatura_decisao = None
@@ -97,13 +103,18 @@ class Motor:
                  "solicitacao_prioritaria": p.solicitacao_prioritaria}
                 for fila in self._entradas.values() for p in fila
             ],
-            versao_configuracao="1.7",
+            versao_configuracao="1.8",
             participantes=[p.model_copy(deep=True) for p in self._participantes.values()],
             semaforos={origem: self.controle.sinais()[f"{origem}-seguir_em_frente"] for origem in TRAJETORIAS},
             semaforos_pedestres={m: self.controle.sinais()[m] for m in PEDESTRES},
             controle={**self.controle.diagnostico(self._step),
-                "politica": "fixa_referencia" if self.configuracao_controlador.controlador == "baseline" else "prioridades_demanda_v1",
+                "politica": (f"transito_{self.operacao.modelo if self.operacao.modo == 'neural' else 'urbano'}_v1" if self.operacao.modo != "paradigmas" else "fixa_referencia" if self.configuracao_controlador.controlador == "baseline" else "prioridades_demanda_v1"),
                 "configuracao_controlador": self.configuracao_controlador.model_dump(),
+                "operacao": self.operacao.model_dump(),
+                "transito": self._diagnostico_transito,
+                "erro_neural_transito": self.transito.erro,
+                "treinamento_transito": {nome: {k: v for k, v in modelo.items() if k != "historico"}
+                    for nome, modelo in self.transito.documento["modelos"].items()} if self.transito.documento else None,
                 "falha_controlador": self._falha_controlador,
                 "modelo_neural": self.modelo_neural,
                 "modelos_neurais": self.neurais.disponibilidade(),
@@ -166,21 +177,23 @@ class Motor:
         except ValidationError:
             rejeitar("Comando inválido: informe command_id, tipo e parametros, sem campos extras.")
             return
-        if comando.tipo not in {"inserir_participante", "configurar_gerador", "configurar_controlador", "configurar_modelo_neural"}:
+        if comando.tipo not in {"inserir_participante", "configurar_gerador", "configurar_controlador", "configurar_modelo_neural", "configurar_operacao", "resetar_simulacao"}:
             rejeitar("Tipo de comando não suportado. Use inserir_participante, configurar_gerador, configurar_controlador ou configurar_modelo_neural.")
             return
         if comando.confirmacao is not None or comando.passo_solicitado is not None:
             rejeitar("O motor define a confirmação e o passo de aplicação neste incremento.")
             return
         try:
-            classe = (ConfiguracaoNeural if comando.tipo == "configurar_modelo_neural" else
+            classe = (ParametrosReset if comando.tipo == "resetar_simulacao" else
+                      ConfiguracaoOperacao if comando.tipo == "configurar_operacao" else
+                      ConfiguracaoNeural if comando.tipo == "configurar_modelo_neural" else
                       ConfiguracaoControlador if comando.tipo == "configurar_controlador" else
                       ConfiguracaoGerador if comando.tipo == "configurar_gerador" else
                       ParametrosPedestre if comando.parametros.get("categoria") == "pedestre" else ParametrosInsercao)
             parametros = classe.model_validate(comando.parametros)
         except ValidationError as erro:
             detalhe = erro.errors()[0]
-            if comando.tipo in {"configurar_controlador", "configurar_modelo_neural"}:
+            if comando.tipo in {"configurar_controlador", "configurar_modelo_neural", "configurar_operacao"}:
                 rejeitar(f"Configuração de controlador inválida: {detalhe['msg']}")
                 return
             if comando.tipo == "configurar_gerador":
@@ -201,7 +214,7 @@ class Motor:
             }
             rejeitar(motivos.get(campo, f"Parâmetro não permitido: {campo}."))
             return
-        anterior = self._comandos.get(comando.command_id)
+        anterior = self._comandos.get(comando.command_id) or self._resets_confirmados.get(comando.command_id)
         if anterior:
             if anterior.comando != comando:
                 rejeitar("command_id já utilizado com outros parâmetros.")
@@ -210,18 +223,72 @@ class Motor:
             else:
                 anterior.respostas.append(responder)
             return
-        if self._motivo_interrupcao:
+        if self._motivo_interrupcao and comando.tipo != "resetar_simulacao":
             rejeitar(f"Execução interrompida: {self._motivo_interrupcao}. Reinicie o motor para um novo ensaio.")
             return
         self._comandos[comando.command_id] = RegistroComando(comando, parametros, [responder])
         self._pendentes.append(comando.command_id)
 
-    def _aplicar_comandos(self) -> None:
+    def _reiniciar(self, registro: RegistroComando) -> None:
+        """Nova execução no mesmo objeto: mantém sockets e reinicia o RNG da semente."""
+        novo = Motor(limite_ativos=self._limite_ativos, limite_pendentes=self._limite_pendentes,
+                     configuracao_controle=self.controle.configuracao)
+        novo.configuracao_controlador = self.configuracao_controlador.model_copy(deep=True)
+        novo.controlador = criar_controlador(novo.configuracao_controlador.controlador, novo.controle.configuracao)
+        novo.operacao = self.operacao.model_copy(deep=True)
+        novo.controle.adaptativo = novo.operacao.modo != "paradigmas"
+        novo.modelo_neural, novo.neurais, novo.transito = self.modelo_neural, self.neurais, self.transito
+        novo.gerador.configurar(self.gerador.configuracao, 0)
+        novo._configuracao_inicial = novo.configuracao_experimento()
+        novo._historico_metricas = [novo._amostra_metricas(novo.instantaneo())]
+        # Comandos posteriores ao reset pertencem à execução descartada.
+        for ident in self._pendentes:
+            pendente = self._comandos[ident]
+            resposta = RespostaComando(command_id=ident, confirmacao=ConfirmacaoComando(
+                status="rejeitado", erro="Comando cancelado pelo reset da simulação."))
+            for responder in pendente.respostas:
+                responder(resposta.model_copy(deep=True))
+        self.fechar()
+        novo._assinantes = self._assinantes
+        novo._resets_confirmados = self._resets_confirmados
+        novo._comandos = {registro.comando.command_id: registro}
+        # Remove estados antigos ainda não entregues, preservando confirmações.
+        for fila in novo._assinantes:
+            respostas = []
+            while not fila.empty():
+                mensagem = fila.get_nowait()
+                if isinstance(mensagem, RespostaComando):
+                    respostas.append(mensagem)
+            for resposta in respostas:
+                fila.put_nowait(resposta)
+        anterior = self._run_id
+        self.__dict__.update(novo.__dict__)
+        self.controle.registrar = self._registrar
+        self._registrar("simulacao_resetada", "manual", {"execucao_anterior": anterior}, {"configuracoes_preservadas": True})
+
+    def _aplicar_comandos(self) -> bool:
         while self._pendentes:
             command_id = self._pendentes.popleft()
             registro = self._comandos[command_id]
             erro_comando = None
-            if isinstance(registro.parametros, ConfiguracaoControlador):
+            if isinstance(registro.parametros, ParametrosReset):
+                try:
+                    self._reiniciar(registro)
+                    aplicado = True
+                except FalhaProlog as erro:
+                    aplicado, erro_comando = False, f"Não foi possível reiniciar o controlador: {erro}"
+            elif isinstance(registro.parametros, ConfiguracaoOperacao):
+                if registro.parametros.modo == "neural" and self.transito.erro:
+                    aplicado, erro_comando = False, self.transito.erro
+                else:
+                    anterior = self.operacao.model_dump()
+                    self.operacao = registro.parametros.model_copy(deep=True)
+                    self.controle.adaptativo = self.operacao.modo != "paradigmas"
+                    self._diagnostico_transito = None
+                    self._assinatura_decisao = None
+                    self._registrar("operacao_configurada", "manual", {"anterior": anterior}, self.operacao.model_dump())
+                    aplicado = True
+            elif isinstance(registro.parametros, ConfiguracaoControlador):
                 anterior = self.configuracao_controlador.model_dump()
                 try:
                     novo = (self.controlador if registro.parametros.controlador == self.configuracao_controlador.controlador
@@ -237,6 +304,9 @@ class Motor:
                     if novo is not self.controlador:
                         self.fechar()
                     self.controlador = novo
+                    self.operacao.modo = "paradigmas"
+                    self.controle.adaptativo = False
+                    self._diagnostico_transito = None
                     self.configuracao_controlador = registro.parametros.model_copy(deep=True)
                     self._falha_controlador = None
                     self._assinatura_decisao = None
@@ -271,6 +341,10 @@ class Motor:
             for responder in registro.respostas:
                 responder(registro.resultado.model_copy(deep=True))
             registro.respostas.clear()
+            if isinstance(registro.parametros, ParametrosReset) and aplicado:
+                self._resets_confirmados[command_id] = registro
+                return True
+        return False
 
     def _interromper(self, motivo: str) -> None:
         if not self._motivo_interrupcao:
@@ -348,30 +422,52 @@ class Motor:
                 self._registrar("participante_inserido", origem, {"participante_id": participante.id}, {})
                 self._registrar("inicio_espera", origem, {"participante_id": participante.id, "motivo": "aguardando_travessia"}, {})
                 continue
-            perfil = PERFIS[candidato.categoria]
-            ocupada = any(
-                p.origem == origem and
-                self._distancias[p.id] - perfil.distancia_inicial <
-                (p.dimensoes.comprimento + candidato.dimensoes.comprimento) / 2 + perfil.distancia_minima
-                for p in self._participantes.values()
-            )
-            if ocupada:
-                continue
-            participante = fila.popleft()
-            participante.instante_inserido = self._step / 10
-            participante.estado = "em_movimento"
-            self._participantes[participante.id] = participante
-            self._admitidos[participante.fonte] += 1
-            self._passos_insercao[participante.id] = self._step
-            self._distancias[participante.id] = perfil.distancia_inicial
-            self._registrar("participante_inserido", origem, {"participante_id": participante.id}, {})
+            # FIFO por origem, até uma admissão por faixa neste passo.
+            for _ in FAIXAS:
+                if not fila:
+                    break
+                if len(self._participantes) >= self._limite_ativos:
+                    self._interromper("Limite técnico de participantes ativos atingido")
+                    break
+                candidato = fila[0]
+                perfil = PERFIS[candidato.categoria]
+                livres = []
+                for faixa in FAIXAS:
+                    veiculos = [p for p in self._participantes.values()
+                                if p.origem == origem and p.faixa == faixa]
+                    ocupada = any(
+                        self._distancias[p.id] - perfil.distancia_inicial <
+                        (p.dimensoes.comprimento + candidato.dimensoes.comprimento) / 2 + perfil.distancia_minima
+                        for p in veiculos
+                    )
+                    if not ocupada:
+                        # Extensão física da aproximação ocupada; sem sorteios extras.
+                        carga = sum(p.dimensoes.comprimento + PERFIS[p.categoria].distancia_minima
+                                    for p in veiculos if p.id not in self._autorizados)
+                        livres.append((carga, faixa != self._proxima_faixa[origem], faixa))
+                if not livres:
+                    break
+                faixa = min(livres)[2]
+                self._proxima_faixa[origem] = FAIXAS[1] if faixa == FAIXAS[0] else FAIXAS[0]
+                participante = fila.popleft()
+                participante.faixa = faixa
+                participante.posicao = TRAJETORIAS_POR_FAIXA[origem, faixa].posicao(
+                    perfil.distancia_inicial, participante.dimensoes.altura)
+                participante.instante_inserido = self._step / 10
+                participante.estado = "em_movimento"
+                self._participantes[participante.id] = participante
+                self._admitidos[participante.fonte] += 1
+                self._passos_insercao[participante.id] = self._step
+                self._distancias[participante.id] = perfil.distancia_inicial
+                self._registrar("participante_inserido", origem,
+                                {"participante_id": participante.id, "faixa": faixa}, {})
 
     def _mover_participantes(self) -> None:
         # Atualiza da frente para trás. Cada seguidor usa a posição final do líder
         # neste tick, preservando ordem, comprimentos e a folga do próprio seguidor.
-        for origem, trajetoria in TRAJETORIAS.items():
+        for (origem, faixa_veicular), trajetoria in TRAJETORIAS_POR_FAIXA.items():
             fila = sorted(
-                (p for p in self._participantes.values() if p.origem == origem),
+                (p for p in self._participantes.values() if p.origem == origem and p.faixa == faixa_veicular),
                 key=lambda p: (-self._distancias[p.id], p.id),
             )
             lider: Participante | None = None
@@ -476,7 +572,31 @@ class Motor:
             if len(pontos) == 1:
                 self._concluir(p)
 
+    def _decidir_transito(self):
+        proposta, avaliacoes, criterio, calculo, ocupados = self.transito.decidir(self)
+        elegivel = next((a["elegivel"] for a in avaliacoes if a["fase"] == proposta.fase), False)
+        self.controle.aplicar(proposta, self._step, ocupados, elegivel=elegivel)
+        nome = self.operacao.modelo if self.operacao.modo == "neural" else "urbano"
+        self._diagnostico_transito = {"modo": self.operacao.modo, "modelo": nome,
+            "criterio": criterio, "comparacao": calculo,
+            "verde_minimo_segundos": self.controle.verde_minimo / 10,
+            "verde_maximo_segundos": None}
+        self._ultima_decisao = Decisao(decision_id=f"{self._run_id}:decisao:{self._step}",
+            step=self._step, controlador=self.operacao.modo, politica=f"transito_{nome}_v1",
+            modelo=nome, candidatas=[a["fase"] for a in avaliacoes], avaliacoes=avaliacoes,
+            motivos=[criterio, proposta.motivo], proposta=asdict(proposta),
+            resultado_validacao=self.controle.ultima_validacao.copy())
+        assinatura = (self.operacao.modo, nome, proposta.acao, proposta.fase, criterio,
+                     self.controle.estado, self.controle.fase)
+        if assinatura != self._assinatura_decisao:
+            self._registrar("decisao_controlador", self.operacao.modo,
+                            {"transito": self._diagnostico_transito}, self._ultima_decisao.model_dump(mode="json"))
+            self._assinatura_decisao = assinatura
+        return True
+
     def _decidir(self):
+        if self.operacao.modo != "paradigmas":
+            return self._decidir_transito()
         ocupados = tuple(m for m, ids in self._ocupacoes().items() if ids)
         config = self.configuracao_controlador
         relogio = self.controle.leitura(self._step, ocupados)
@@ -543,13 +663,19 @@ class Motor:
         return True
 
     def avancar(self) -> Instantaneo:
-        if self._motivo_interrupcao:
+        reset_pendente = any(isinstance(self._comandos[c].parametros, ParametrosReset) for c in self._pendentes)
+        if self._motivo_interrupcao and not reset_pendente:
             estado = self.instantaneo()
             for fila in tuple(self._assinantes):
                 self.enfileirar(fila, estado)
             return estado
         self._step += 1
-        self._aplicar_comandos()
+        reiniciado = self._aplicar_comandos()
+        if reiniciado or (reset_pendente and self._motivo_interrupcao):
+            estado = self.instantaneo()
+            for fila in tuple(self._assinantes):
+                self.enfileirar(fila, estado)
+            return estado
         self._gerar_chegadas()
         self._admitir_participantes()
         if self._decidir():
@@ -567,6 +693,7 @@ class Motor:
     def configuracao_experimento(self):
         return {"controle": self.controle.configuracao.model_dump(mode="json"),
                 "controlador": self.configuracao_controlador.model_dump(mode="json"),
+                "operacao": self.operacao.model_dump(),
                 "modelo_neural": self.modelo_neural, "gerador": self.gerador.configuracao.model_dump(mode="json"),
                 "passo_segundos": PASSO_SEGUNDOS,
                 "limites": {"ativos": self._limite_ativos, "pendentes": self._limite_pendentes}}
@@ -574,7 +701,8 @@ class Motor:
     def _amostra_metricas(self, estado):
         return {"step": estado.step, "tempo_simulado": estado.simulation_time, "fase": estado.fase,
                 "estado_transicao": estado.estado_transicao,
-                "controlador": self.configuracao_controlador.controlador, "modelo": self.modelo_neural,
+                "controlador": self.configuracao_controlador.controlador if self.operacao.modo == "paradigmas" else self.operacao.modo,
+                "modelo": self.modelo_neural if self.operacao.modo == "paradigmas" else self.operacao.modelo if self.operacao.modo == "neural" else "urbano",
                 "metricas": estado.metricas, "filas": estado.filas,
                 "propostas_bloqueadas": self.controle.bloqueios,
                 "solicitados": dict(self._solicitados), "admitidos": dict(self._admitidos), "recusados": dict(self._recusados)}
@@ -588,12 +716,13 @@ class Motor:
             amostras[-1] = atual
         else:
             amostras.append(atual)
-        return {"schema_version": "1.0", "versao_motor": "1.7", "run_id": self._run_id,
+        return {"schema_version": "1.0", "versao_motor": "1.8", "run_id": self._run_id,
                 "intervalo_observado": {"inicio": 0, "fim": self._step / 10, "unidade": "segundos_simulados"},
                 "passo_exportacao": self._step, "motivo_encerramento": self._motivo_interrupcao or "em_andamento",
                 "configuracao_inicial": self._configuracao_inicial,
                 "configuracao_atual": self.configuracao_experimento(),
                 "modelos_neurais": self.neurais.disponibilidade(), "pesos_treinados": self.neurais.pesos_exportaveis(),
+                "treinamento_transito": self.transito.documento,
                 "eventos": [e.model_dump(mode="json") for e in self._eventos],
                 "historico_fases": [e.model_dump(mode="json") for e in self._eventos if e.tipo == "transicao_semaforica"],
                 "metricas": estado.metricas, "demanda": estado.demanda,

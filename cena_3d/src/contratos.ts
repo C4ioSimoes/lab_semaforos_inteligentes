@@ -18,7 +18,7 @@ export interface ConfiguracaoControlador {
   controlador: NomeControlador; limiar_espera: number; prioridade_ambulancia: boolean; prioridade_onibus: boolean;
 }
 export interface DecisaoControlador {
-  step: number; controlador: NomeControlador; modelo?: ModeloNeural; motivos: string[];
+  step: number; controlador: NomeControlador | 'neural' | 'urbano'; modelo?: string; motivos: string[];
   proposta: { acao: string; fase: string | null; motivo: string };
   avaliacoes: { fase: string; demanda: number; maior_espera: number; criterio: string; admissivel: boolean; elegivel: boolean; bloqueio: string | null; neural?: CalculoNeural; origem_solicitacao?: string }[];
 }
@@ -44,6 +44,12 @@ export interface Controle {
   falha_controlador?: string | null;
   modelo_neural?: ModeloNeural;
   modelos_neurais?: Record<ModeloNeural, DisponibilidadeNeural>;
+  operacao?: { modo: 'paradigmas' | 'neural' | 'urbano'; modelo: 'perceptron' | 'adaline' };
+  erro_neural_transito?: string | null;
+  treinamento_transito?: Record<string, {epocas: number; acuracia_teste_sintetico: number; pesos: number[]}> | null;
+  transito?: { modo: string; modelo: string; criterio: string; comparacao: {
+    entradas: number[]; pesos: number[]; soma_ponderada: number; saida: number; candidata: string; atual: string;
+  } | null } | null;
 }
 
 export interface Participante {
@@ -52,6 +58,7 @@ export interface Participante {
   readonly origem: string;
   readonly destino: string;
   readonly trajetoria: string;
+  readonly faixa?: 'externa' | 'interna' | null;
   readonly posicao: { readonly x: number; readonly y: number; readonly z: number; readonly rotacao_y: number };
   readonly estado: string;
   readonly instante_solicitado: number;
@@ -97,7 +104,13 @@ export interface ComandoControlador {
 export interface ComandoNeural {
   command_id: string; tipo: 'configurar_modelo_neural'; parametros: { modelo: ModeloNeural };
 }
-export type ComandoCliente = ComandoInsercao | ComandoGerador | ComandoControlador | ComandoNeural;
+export interface ComandoOperacao {
+  command_id: string; tipo: 'configurar_operacao'; parametros: { modo: 'paradigmas' | 'neural' | 'urbano'; modelo?: 'perceptron' | 'adaline' };
+}
+export interface ComandoReset {
+  command_id: string; tipo: 'resetar_simulacao'; parametros: Record<string, never>;
+}
+export type ComandoCliente = ComandoReset | ComandoOperacao | ComandoInsercao | ComandoGerador | ComandoControlador | ComandoNeural;
 
 export interface RespostaComando {
   readonly tipo: 'confirmacao_comando';
@@ -158,8 +171,20 @@ function metricasValidas(v: unknown): boolean {
     naoNegativo(v.limiar_velocidade_espera) && resumo(v.total) && objeto(v.por_origem) &&
     objeto(v.por_categoria) && Object.values(v.por_origem).every(resumo) && Object.values(v.por_categoria).every(resumo);
 }
+function operacaoValida(v: unknown): boolean {
+  return objeto(v) && ['paradigmas', 'neural', 'urbano'].includes(v.modo as string) && ['perceptron', 'adaline'].includes(v.modelo as string);
+}
+function transitoValido(v: unknown): boolean {
+  if (v === null) return true;
+  if (!objeto(v) || !texto(v.modo) || !texto(v.modelo) || !texto(v.criterio)) return false;
+  const c = v.comparacao;
+  return c === null || (objeto(c) && Array.isArray(c.entradas) && c.entradas.length === 5 && c.entradas.every(finito) &&
+    Array.isArray(c.pesos) && c.pesos.length === 5 && c.pesos.every(finito) && finito(c.soma_ponderada) &&
+    [-1, 1].includes(c.saida as number) && texto(c.candidata) && texto(c.atual));
+}
 function controleValido(v: unknown): boolean {
-  return objeto(v) && texto(v.politica) && texto(v.estado) && naoNegativo(v.inicio_passo) &&
+  return objeto(v) && (v.operacao === undefined || operacaoValida(v.operacao)) &&
+    (v.transito === undefined || transitoValido(v.transito)) && texto(v.politica) && texto(v.estado) && naoNegativo(v.inicio_passo) &&
     naoNegativo(v.decorrido_segundos) && naoNegativo(v.bloqueios) && Array.isArray(v.sequencia) &&
     v.sequencia.every(texto) && Array.isArray(v.permissoes) && v.permissoes.every(texto) &&
     objeto(v.tempos) && ['verde', 'amarelo', 'liberacao_minima'].every((k) => naoNegativo((v.tempos as ObjetoJson)[k])) &&
@@ -177,7 +202,7 @@ function configuracaoControladorValida(v: unknown): boolean {
 }
 function decisaoValida(v: unknown): boolean {
   return objeto(v) && Number.isSafeInteger(v.step) && naoNegativo(v.step) &&
-    ['baseline', 'imperativo', 'orientado_objetos', 'funcional', 'logico'].includes(v.controlador as string) &&
+    ['baseline', 'imperativo', 'orientado_objetos', 'funcional', 'logico', 'neural', 'urbano'].includes(v.controlador as string) &&
     Array.isArray(v.motivos) && v.motivos.every(texto) && objeto(v.proposta) &&
     texto(v.proposta.acao) &&
     (v.proposta.fase === null || texto(v.proposta.fase)) && texto(v.proposta.motivo) && Array.isArray(v.avaliacoes) &&
@@ -191,6 +216,7 @@ function participante(v: unknown): boolean {
   const dimensoes = v.dimensoes;
   return texto(v.id) && categoriaValida(v.categoria) && texto(v.origem) &&
     texto(v.destino) && texto(v.trajetoria) && texto(v.estado) &&
+    (v.faixa === undefined || v.faixa === null || v.faixa === 'externa' || v.faixa === 'interna') &&
     ['x', 'y', 'z', 'rotacao_y'].every((eixo) => finito(posicao[eixo])) &&
     ['comprimento', 'largura', 'altura'].every((eixo) => finito(dimensoes[eixo]) && (dimensoes[eixo] as number) > 0) &&
     finito(v.instante_solicitado) && v.instante_solicitado >= 0 &&
@@ -229,10 +255,10 @@ export function lerInstantaneo(mensagem: string): Instantaneo {
       (v.demanda !== undefined && !demandaValida(v.demanda)) ||
       (v.metricas !== undefined && !metricasValidas(v.metricas)) ||
       (v.controle !== undefined && !controleValido(v.controle)) ||
-      (['1.4', '1.5', '1.6', '1.7'].includes(v.versao_configuracao as string) && (v.controle === undefined || v.metricas === undefined || v.semaforos_pedestres === undefined)) ||
-      (['1.5', '1.6', '1.7'].includes(v.versao_configuracao as string) && (!objeto(v.controle) || !configuracaoControladorValida(v.controle.configuracao_controlador))) ||
-      (['1.6', '1.7'].includes(v.versao_configuracao as string) && (!objeto(v.controle) || !(v.controle.falha_controlador === null || texto(v.controle.falha_controlador)))) ||
-      (v.versao_configuracao === '1.7' && (!objeto(v.controle) || !modelosNeurais.includes(v.controle.modelo_neural as string) || !disponibilidadeNeuralValida(v.controle.modelos_neurais))) ||
+      (['1.4', '1.5', '1.6', '1.7', '1.8'].includes(v.versao_configuracao as string) && (v.controle === undefined || v.metricas === undefined || v.semaforos_pedestres === undefined)) ||
+      (['1.5', '1.6', '1.7', '1.8'].includes(v.versao_configuracao as string) && (!objeto(v.controle) || !configuracaoControladorValida(v.controle.configuracao_controlador))) ||
+      (['1.6', '1.7', '1.8'].includes(v.versao_configuracao as string) && (!objeto(v.controle) || !(v.controle.falha_controlador === null || texto(v.controle.falha_controlador)))) ||
+      (['1.7', '1.8'].includes(v.versao_configuracao as string) && (!objeto(v.controle) || !modelosNeurais.includes(v.controle.modelo_neural as string) || !disponibilidadeNeuralValida(v.controle.modelos_neurais))) ||
       (v.semaforos_pedestres !== undefined && (!objeto(v.semaforos_pedestres) || !['N-TR', 'S-TR', 'L-TR', 'O-TR'].every((m) => ['verde', 'vermelho'].includes((v.semaforos_pedestres as ObjetoJson)[m] as string)))) ||
       !objeto(v.semaforos) || !['N', 'S', 'L', 'O'].every((origem) => ['vermelho', 'amarelo', 'verde'].includes((v.semaforos as ObjetoJson)[origem] as string)) ||
       !Array.isArray(v.participantes) || !v.participantes.every(participante) ||

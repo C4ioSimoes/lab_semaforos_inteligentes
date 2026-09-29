@@ -1,4 +1,5 @@
 import { expect, test, type WebSocketRoute } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
 
 const carro = (id = 'carro-1') => ({
   id, categoria: 'carro', origem: 'L', destino: 'O', trajetoria: 'L-seguir_em_frente',
@@ -6,6 +7,44 @@ const carro = (id = 'carro-1') => ({
   estado: 'em_movimento', instante_solicitado: 0.1, instante_inserido: 0.1,
   solicitacao_prioritaria: false,
   dimensoes: { comprimento: 4, largura: 1.8, altura: 1.3 }, instante_inicio_espera: null,
+});
+
+test('renderiza as duas faixas de cada sentido com posições reais do motor', async ({ page }) => {
+  const estado = JSON.parse(execFileSync('../.venv/bin/python', ['-c', `
+import json
+from motor_python.motor import Motor
+motor = Motor()
+for origem in 'NSLO':
+    for i in range(2):
+        motor.receber_comando(dict(command_id=f'{origem}-{i}', tipo='inserir_participante',
+            parametros=dict(categoria='carro', origem=origem, movimento='seguir_em_frente', quantidade=1)), lambda _: None)
+for _ in range(40):
+    estado = motor.avancar()
+print(estado.model_dump_json())
+`], { env: { ...process.env, PYTHONPATH: '..' }, encoding: 'utf8' }));
+  await page.routeWebSocket('**/ws', ws => ws.send(JSON.stringify(estado)));
+  await page.goto('/');
+  await expect(page.locator('#passo')).toHaveText('40');
+  await expect(page.locator('#erro-cena')).toBeHidden();
+  const posicoes = await page.evaluate(async (participantes) => {
+    const { criarCamadaParticipantes } = await import('/src/participantes.ts');
+    const camada = criarCamadaParticipantes();
+    camada.atualizar('duas-faixas', participantes);
+    const modelos = participantes.map(p => ({
+      origem: p.origem, faixa: p.faixa,
+      posicao: camada.grupo.getObjectByName(p.id)!.position.toArray(),
+    }));
+    camada.descartar();
+    return modelos;
+  }, estado.participantes);
+  expect(posicoes).toHaveLength(8);
+  for (const origem of ['N', 'S', 'L', 'O']) {
+    const modelos = posicoes.filter(p => p.origem === origem);
+    expect(modelos.map(p => p.faixa)).toEqual(['externa', 'interna']);
+    const eixo = ['N', 'S'].includes(origem) ? 0 : 2;
+    const sinal = ['N', 'L'].includes(origem) ? -1 : 1;
+    expect(modelos.map(p => p.posicao[eixo])).toEqual([sinal * 4.5, sinal * 1.5]);
+  }
 });
 const instantaneo = (step: number, participantes: ReturnType<typeof carro>[] = []) => JSON.stringify({
   run_id: 'teste', step, simulation_time: step / 10, fase: null,
@@ -39,4 +78,3 @@ test('copia coordenadas exatas, mantém posição entre ticks e substitui a exec
   expect(resultado.rotacao).toBe(-Math.PI / 2);
   expect(resultado.restantes).toBe(0);
 });
-

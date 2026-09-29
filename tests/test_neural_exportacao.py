@@ -147,16 +147,18 @@ def test_exportacoes_incluem_nao_atendidos_historico_e_recorte_imutavel():
     for _ in range(3):
         motor.avancar()
     dados = motor.exportar_experimento()
-    assert dados['metricas']['total']['ativos'] == 1
-    assert dados['metricas']['total']['pendentes'] == 2
-    assert len(dados['participantes_pendentes']) == 2
+    assert dados['metricas']['total']['ativos'] == 2
+    assert dados['metricas']['total']['pendentes'] == 1
+    assert len(dados['participantes_pendentes']) == 1
+    assert {p['faixa'] for p in dados['participantes_ativos']} == {'externa', 'interna'}
+    assert dados['participantes_pendentes'][0]['faixa'] is None
     assert dados['historico_fases'] and dados['pesos_treinados']['adaline']['treinado']
     assert dados['configuracao_atual']['gerador']['semente'] == 42
     assert [h['step'] for h in dados['historico_metricas']] == [0, 10, 13]
     assert dados['motivo_encerramento'] == 'em_andamento'
     linhas = list(csv.DictReader(StringIO(metricas_csv(dados))))
     ultima = next(l for l in linhas if l['step'] == '13' and l['escopo'] == 'total')
-    assert ultima['ativos'] == '1' and ultima['pendentes'] == '2'
+    assert ultima['ativos'] == '2' and ultima['pendentes'] == '1'
     assert float(ultima['espera_pendentes_externa_total']) > 0
     assert any(l['origem'] == 'N' and l['categoria'] == 'carro' for l in linhas)
     antes = deepcopy(dados)

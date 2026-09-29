@@ -48,7 +48,7 @@ o motivo. Reinicie o motor para iniciar outro ensaio; não existe fallback autom
 Conecte a interface a `ws://127.0.0.1:8000/ws`. A conexão recebe imediatamente um
 objeto JSON `Instantaneo`, sem envelope adicional, e um novo estado por passo.
 Confirmações de comandos usam `tipo: "confirmacao_comando"`.
-O [protocolo 1.7](../motor_python/PROTOCOLO.md) documenta os payloads de inserção e
+O [protocolo 1.8](../motor_python/PROTOCOLO.md) documenta os payloads de inserção e
 configuração, posições oficiais e diagnóstico de demanda. Os nomes dos contratos
 da Seção 13 foram normalizados para `snake_case`, sem acentos.
 
@@ -135,7 +135,13 @@ inteiros de 0,1 s. O controlador recebe um estado imutável e apenas propõe aç
 a máquina do motor valida e executa as mudanças. O ciclo começa em liberação.
 
 Veículos mantêm seguimento ao atravessar e só saem do instantâneo quando toda a
-carroceria alcançou a saída, agora em ±90 unidades. Na abertura do verde, todos os
+carroceria alcançou a saída. Cada sentido utiliza duas faixas, externa e interna,
+com admissão e seguimento independentes. A escolha da faixa ocorre na entrada:
+entre as livres, o motor favorece a menor extensão de fila, alternando em empates.
+O veículo permanece na faixa escolhida até concluir o percurso; não há troca de
+faixa. Filas e métricas por origem somam as duas faixas. A saída fica em ±90 unidades.
+
+Na abertura do verde, todos os
 pedestres admitidos das travessias permitidas são autorizados no mesmo passo.
 Percursos individuais, sentidos separados e preferência local nas esquinas
 preservam as distâncias; quem iniciou termina mesmo após o vermelho. O motor
@@ -221,3 +227,7 @@ Os downloads não pausam o motor. Eventos e séries ficam em memória durante a
 execução: exporte antes de reiniciar o servidor para preservá-los. Não há replay
 nem persistência automática neste incremento. Trocas exploratórias de modelo e
 controlador ficam registradas e devem ser consideradas nas comparações.
+
+### Resetar sem reiniciar o servidor
+
+O botão **Resetar simulação**, logo abaixo do relógio, zera tempo, veículos, pedestres, filas e métricas. O modo e as configurações de geração são mantidos; se a geração estiver ligada, novos participantes voltarão a chegar. A semente é reiniciada para permitir repetir o experimento. O botão também permite sair de uma interrupção por limite técnico. Para conservar o histórico atual, exporte os dados antes de resetar.

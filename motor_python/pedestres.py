@@ -20,7 +20,7 @@ def posicoes_acesso(acesso: str) -> list[Posicao]:
             for x, z in [local(travessia, (-1 if lado == "A" else 1) * (12 + coluna), faixa)]]
 
 
-VELOCIDADE_PEDESTRE = 1.4
+VELOCIDADE_PEDESTRE = 1.7
 FOLGA_PEDESTRE = 0.8
 
 

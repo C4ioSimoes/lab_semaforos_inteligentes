@@ -104,6 +104,15 @@ class MaquinaSemaforica:
         self.ultima_validacao = {"aceita": True, "motivo": "Liberação inicial."}
         self.bloqueios = 0
         self._ultimo_bloqueio = None
+        self.adaptativo = False
+
+    @property
+    def verde_minimo(self):
+        return 30 if self.adaptativo else self.configuracao.verde_passos
+
+    @property
+    def verde_maximo(self):
+        return float('inf') if self.adaptativo else self.configuracao.verde_passos
 
     def leitura(self, passo: int, ocupados: tuple[str, ...]) -> EstadoControle:
         return EstadoControle(self.fase, self.estado, passo - self.inicio_passo, ocupados)
@@ -135,7 +144,7 @@ class MaquinaSemaforica:
             if proposta.fase is not None:
                 motivo = "Espera sem demanda não pode indicar fase."
             elif self.estado == "atendimento":
-                if decorrido < self.configuracao.verde_passos:
+                if decorrido < self.verde_minimo:
                     motivo = "Tempo mínimo de atendimento não cumprido."
                 else:
                     self._mudar("encerramento" if any(m in VEICULARES for m in self.fases[self.fase]) else "liberacao", self.fase, passo)
@@ -147,10 +156,10 @@ class MaquinaSemaforica:
         elif proposta.acao == "manter":
             if self.estado != "atendimento" or proposta.fase != self.fase:
                 motivo = "Manutenção incompatível com o estado atual."
-            elif decorrido >= self.configuracao.verde_passos:
+            elif decorrido >= self.verde_maximo:
                 motivo = "Tempo máximo de atendimento atingido."
         elif self.estado == "atendimento":
-            if decorrido < self.configuracao.verde_passos:
+            if decorrido < self.verde_minimo:
                 motivo = "Tempo mínimo de atendimento não cumprido."
             else:
                 proximo = "encerramento" if any(m in VEICULARES for m in self.fases[self.fase]) else "liberacao"
@@ -169,7 +178,7 @@ class MaquinaSemaforica:
                 motivo = "Avaliador de elegibilidade não autorizou a abertura da fase."
             else:
                 self._mudar("atendimento", proposta.fase, passo)
-        if motivo and self.estado == "atendimento" and decorrido >= self.configuracao.verde_passos:
+        if motivo and self.estado == "atendimento" and decorrido >= self.verde_maximo:
             # Uma proposta inválida não pode prolongar o verde além do máximo.
             proximo = "encerramento" if any(m in VEICULARES for m in self.fases[self.fase]) else "liberacao"
             self._mudar(proximo, self.fase, passo)
@@ -186,7 +195,7 @@ class MaquinaSemaforica:
         """Autorizar agora é distinto de escolher um destino para transição."""
         decorrido = passo - self.inicio_passo
         if self.estado == "atendimento":
-            if self.fase == fase and decorrido < self.configuracao.verde_passos:
+            if self.fase == fase and decorrido < self.verde_maximo:
                 return True, None
             return False, "É necessário encerrar atendimento e cumprir a transição."
         if self.estado == "encerramento":
@@ -201,6 +210,9 @@ class MaquinaSemaforica:
         return {"politica": "fixa_referencia", "sequencia": list(self.configuracao.sequencia),
                 "estado": self.estado, "inicio_passo": self.inicio_passo,
                 "decorrido_segundos": (passo - self.inicio_passo) / 10,
+                "verde_variavel": self.adaptativo,
+                "verde_minimo_segundos": self.verde_minimo / 10,
+                "verde_maximo_segundos": None if self.adaptativo else self.verde_maximo / 10,
                 "tempos": {"verde": self.configuracao.verde_passos / 10,
                            "amarelo": self.configuracao.amarelo_passos / 10,
                            "liberacao_minima": self.configuracao.liberacao_passos / 10},

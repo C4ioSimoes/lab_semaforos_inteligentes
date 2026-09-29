@@ -51,25 +51,28 @@ def test_categorias_parametros_e_parada_antes_da_barra(origem, categoria, compri
 @pytest.mark.parametrize("ordem", list(permutations(["carro", "moto", "onibus", "ambulancia"])))
 def test_filas_mistas_sem_ultrapassagem_sobreposicao_ou_descarte(origem, ordem):
     motor = Motor(configuracao_controle=ConfiguracaoControle(liberacao_passos=1000))
-    for i, categoria in enumerate((*ordem, *(["onibus"] * 8))):
+    pedidos = (*ordem, *(["onibus"] * 16))
+    for i, categoria in enumerate(pedidos):
         inserir(motor, origem, categoria, str(i))
     anterior = {}
     for _ in range(500):
         estado = motor.avancar()
         participantes = estado.participantes
-        assert len(participantes) + len(estado.solicitacoes) == 12
-        assert [p.categoria for p in participantes] == list((*ordem, *(["onibus"] * 8)))[:len(participantes)]
+        assert len(participantes) + len(estado.solicitacoes) == len(pedidos)
+        assert [p.categoria for p in participantes] == list(pedidos)[:len(participantes)]
         for p in participantes:
             progresso = centro_desde_borda(p)
             assert progresso >= anterior.get(p.id, progresso) - 1e-8
             anterior[p.id] = progresso
             assert progresso - p.dimensoes.comprimento / 2 >= -1e-8
             assert BORDA_VIA - progresso - p.dimensoes.comprimento / 2 >= 11.725 - 1e-8
-        for lider, seguidor in zip(participantes, participantes[1:]):
-            espaco = centro_desde_borda(lider) - centro_desde_borda(seguidor) - (
-                lider.dimensoes.comprimento + seguidor.dimensoes.comprimento
-            ) / 2
-            assert espaco >= PERFIS[seguidor.categoria].distancia_minima - 1e-8
+        for faixa in ("externa", "interna"):
+            fila = [p for p in participantes if p.faixa == faixa]
+            for lider, seguidor in zip(fila, fila[1:]):
+                espaco = centro_desde_borda(lider) - centro_desde_borda(seguidor) - (
+                    lider.dimensoes.comprimento + seguidor.dimensoes.comprimento
+                ) / 2
+                assert espaco >= PERFIS[seguidor.categoria].distancia_minima - 1e-8
     assert estado.solicitacoes  # a fila externa não desaparece ao saturar
     assert all(p.estado.startswith("aguardando_") for p in participantes)
     assert estado.filas["internas"][origem] == len(participantes)

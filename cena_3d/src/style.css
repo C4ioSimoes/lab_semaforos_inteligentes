@@ -103,3 +103,15 @@ footer { display: flex; justify-content: space-between; gap: 12px; padding: 16px
   .painel-dados { padding: 20px; } footer { flex-wrap: wrap; padding: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .trilho::before { transition: none; } }
+
+.modo-ativo { border-left: 3px solid #63c9ae; padding: 10px; background: #162d2c; }
+#comparacao-transito { overflow-x: auto; font-size: .8rem; }
+#comparacao-transito table { border-collapse: collapse; width: 100%; }
+#comparacao-transito td, #comparacao-transito th { border-bottom: 1px solid var(--border); padding: 8px; text-align: left; }
+.calculo-neural-aplicado { overflow-wrap: anywhere; line-height: 1.6; }
+.separadores { flex-wrap: wrap; }
+.modo-ativo, .painel-controlador > p:not(.sobretitulo), .painel-controlador ul, .calculo-neural-aplicado { font-size: 11px; line-height: 1.6; }
+.painel-controlador h3 { font-size: 13px; margin-top: 20px; }
+.painel-controlador ul { padding-left: 18px; }
+#ativar-neural-transito, #ativar-urbano { width: 100%; margin-top: 10px; }
+#resetar-simulacao { width: 100%; }

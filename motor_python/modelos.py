@@ -48,6 +48,7 @@ class Participante(Contrato):
     origem: Identificador
     destino: Identificador
     trajetoria: Identificador
+    faixa: Literal["externa", "interna"] | None = None
     posicao: Posicao
     estado: Identificador
     instante_solicitado: Tempo
@@ -109,6 +110,15 @@ class ConfiguracaoControlador(Contrato):
 
 class ConfiguracaoNeural(Contrato):
     modelo: Literal["AND_referencia", "perceptron", "adaline"]
+
+
+class ConfiguracaoOperacao(Contrato):
+    modo: Literal["paradigmas", "neural", "urbano"] = "paradigmas"
+    modelo: Literal["perceptron", "adaline"] = "perceptron"
+
+
+class ParametrosReset(Contrato):
+    pass
 
 
 class ParametrosPedestre(Contrato):

@@ -1,7 +1,7 @@
-# Protocolo incremental 1.7 — avaliação neural e exportações
+# Protocolo incremental 1.8 — duas faixas por sentido
 
 Extensão dos contratos mínimos da Seção 13 de `requisitos.md`. A configuração
-emitida é `1.7`. `Instantaneo.participantes` é a lista completa de objetos
+emitida é `1.8`. `Instantaneo.participantes` é a lista completa de objetos
 `Participante`; `semaforos` informa verde/amarelo/vermelho para N/S/L/O,
 `semaforos_pedestres` informa verde/vermelho por travessia e `estado_transicao`
 é `atendimento`, `encerramento` ou `liberacao`. Cada participante inclui `dimensoes`, `instante_inicio_espera`, `espera_interna`,
@@ -9,6 +9,13 @@ emitida é `1.7`. `Instantaneo.participantes` é a lista completa de objetos
 `fonte` (`manual` ou `automatico`). O instantâneo também inclui `demanda`, `controle` e `metricas`.
 `posicao` mantém `x`, `y`, `z` e `rotacao_y`, todos finitos. A alteração aplica-se
 conjuntamente ao motor e à cena. O controlador selecionado propõe fases e o motor as valida; o navegador não envia cores.
+
+Na versão 1.8, `Participante.faixa` identifica `externa` ou `interna` para veículos
+admitidos. Pedestres e veículos ainda na fila externa têm `faixa: null`. O motor
+escolhe a faixa na admissão, sem novo parâmetro nos comandos de inserção ou geração.
+O evento `participante_inserido` registra a faixa veicular. A trajetória semafórica
+continua sendo `N/S/L/O-seguir_em_frente`: ambas as faixas obedecem ao mesmo sinal,
+e ocupações de qualquer uma delas bloqueiam movimentos conflitantes.
 
 ## Comando enviado pelo cliente
 
@@ -90,7 +97,7 @@ O ID ilustrativo é gerado pelo motor e inclui a categoria. `posicao` indica o
 centro da caixa gráfica e a rotação em Y, em radianos. A cena copia posição,
 orientação e dimensões sem integrar velocidade ou decidir quando admitir um veículo.
 
-Coordenadas iniciais de Carro (as demais categorias ajustam o centro pelo comprimento):
+Coordenadas iniciais de Carro na faixa externa (as demais categorias ajustam o centro pelo comprimento):
 
 | Origem | x inicial | z inicial | Direção | Destino |
 | --- | ---: | ---: | --- | --- |
@@ -98,6 +105,9 @@ Coordenadas iniciais de Carro (as demais categorias ajustam o centro pelo compri
 | S | +4,5 | +88 | −Z | N |
 | L | +88 | −4,5 | −X | O |
 | O | −88 | +4,5 | +X | L |
+
+Na faixa interna, a coordenada lateral é −1,5 em N/L e +1,5 em S/O.
+A coordenada longitudinal, a direção e o destino são os mesmos da faixa externa.
 
 Parâmetros didáticos em `movimento.py` (unidades do cenário e segundos simulados):
 
@@ -110,7 +120,9 @@ Parâmetros didáticos em `movimento.py` (unidades do cenário e segundos simula
 
 A traseira do veículo recém-admitido fica na borda externa da malha (±90). Isso
 mantém inclusive um ônibus inteiro dentro da faixa. A coordenada Y do centro é
-metade da altura. Cada origem usa uma única faixa de entrada; motos não ultrapassam.
+metade da altura. Cada origem usa duas faixas de entrada de 3 unidades de largura.
+O veículo permanece na mesma faixa até sair; não ultrapassa o líder da própria
+faixa. Veículos em faixas diferentes avançam independentemente.
 
 O passo permanece 0,1 s. O motor mantém a distância longitudinal de cada veículo
 e limita o deslocamento desejado pela retenção e pelo veículo à frente. A frente
@@ -125,10 +137,14 @@ progressiva neste incremento; a velocidade efetiva se ajusta ao espaço disponí
 
 ## Filas, retenção e espera
 
-Pedidos da mesma origem entram em FIFO. A admissão verifica comprimento, posição
-de nascimento e folga do candidato contra os veículos da mesma faixa. Um pedido
-que não cabe permanece externo, sem sobreposição nem descarte. Outras origens
-têm filas independentes.
+Pedidos da mesma origem entram em FIFO, com até duas admissões por passo, uma
+por faixa. A admissão verifica comprimento, posição de nascimento e folga do
+candidato contra os veículos de cada faixa. Entre as entradas livres, escolhe
+a menor soma de comprimentos e folgas dos veículos ainda não autorizados; empates
+alternam entre externa e interna, começando pela externa. Não há sorteios extras.
+Um pedido que não cabe em nenhuma faixa permanece externo, sem sobreposição nem
+descarte. Outras origens têm filas independentes. O limite global de ativos vale
+para a soma de todas as faixas e pedestres.
 
 `filas.externas` informa pendências por N/S/L/O e pelos oito acessos de calçada
 (como `N-TR:A`); `filas.internas` conta participantes em espera nessas origens. `solicitacoes` contém os pedidos
@@ -357,7 +373,7 @@ O frontend não remove por limite gráfico nem calcula a trajetória.
 
 Pedestres admitidos aguardam a fase verde de sua travessia. Todos os que aguardam
 uma travessia permitida recebem autorização no mesmo passo, com percursos
-individuais, estado `em_travessia` e velocidade de 1,4 unidade/s. Os sentidos
+individuais, estado `em_travessia` e velocidade de 1,7 unidade/s. Os sentidos
 ocupam linhas separadas dentro da faixa; a distância mínima é de 0,8 unidade.
 A preferência nas esquinas compartilhadas limita apenas o avanço local.
 
@@ -540,7 +556,7 @@ adaptativos. Os cálculos usam o estado anterior à aplicação da proposta no m
 passo; o restante do instantâneo já reflete a aplicação e os movimentos.
 
 `GET /exportar/eventos` retorna JSON de download com schema_version 1.0 e
-versao_motor 1.7. Contém configuração inicial/atual, demanda, pesos validados,
+versao_motor 1.8. Contém configuração inicial/atual, demanda, pesos validados,
 lista ordenada de eventos, `historico_fases`, `historico_metricas`, métricas
 atuais, ativos e pendentes, run_id, passo_exportacao, intervalo_observado e
 motivo_encerramento. `GET /exportar/metricas` retorna CSV UTF-8 com cabeçalho,
@@ -551,3 +567,20 @@ Os dois downloads recebem Content-Disposition com nome, run_id e passo.
 CORS permite GET da interface local (localhost/127.0.0.1) e expõe esse cabeçalho.
 Downloads não encerram o ensaio; `em_andamento` é um motivo de recorte explícito.
 Eventos e séries permanecem em memória até a reinicialização do processo.
+
+
+## Modos de operação e extensão aplicada
+
+`configurar_operacao` recebe `{"modo":"paradigmas"|"neural"|"urbano", "modelo":"perceptron"|"adaline"}`; `modelo` é opcional e vale `perceptron` por padrão. A confirmação e a deduplicação seguem os demais comandos. O modo neural usa `experimento_transito/pesos_transito.json`; pesos ausentes ou inválidos impedem a ativação. O urbano independe deles.
+
+`controle.operacao` identifica o modo efetivo. `controle.transito` contém critério e comparação neural aplicada, quando houver; `controle.treinamento_transito` informa pesos e acurácia sintética. `controle.decisao.controlador` pode ser `neural` ou `urbano`; nesses casos as avaliações não contêm o campo `neural` de duas entradas da AND. `controle.transito.comparacao` usa cinco entradas, incluindo bias, e é um contrato distinto. `controle.verde_variavel`, `verde_minimo_segundos` e `verde_maximo_segundos` descrevem o regime de verde; máximo nulo significa ausência do encerramento periódico fixo.
+
+Aplicar `configurar_controlador` retorna ao modo Paradigmas e seus tempos originais. Aplicar `configurar_modelo_neural` altera apenas o avaliador AND desse modo. Trocar uma aba no navegador não envia comando. Mudanças de modo preservam a transição atual, relógio e participantes. JSON e CSV identificam a política ativa nas amostras; métricas seguem acumuladas desde o início da execução.
+
+Veja `docs/tres_disciplinas.md` para as políticas, limitações e ensaios reproduzíveis.
+
+## Reset da simulação
+
+`{"command_id":"reset-1","tipo":"resetar_simulacao","parametros":{}}` agenda uma nova execução no mesmo motor e mantém os WebSockets conectados. A confirmação aplicada usa passo zero e é seguida de um instantâneo com novo `run_id`, tempo zero, sinais vermelhos e nenhuma demanda acumulada. Os passos seguintes retomam a geração configurada.
+
+O reset limpa participantes, filas, métricas, históricos e interrupções. Preserva configuração semafórica, limites, controlador, modo de operação, modelos e configuração de geração. Reinicia as fontes aleatórias a partir da mesma semente. Funciona mesmo quando a execução foi interrompida. Comandos ainda pendentes depois dele são cancelados; repetições de seu `command_id` devolvem a confirmação anterior sem reiniciar novamente. Histórico anterior deixa de fazer parte das exportações: exporte antes caso precise conservá-lo.

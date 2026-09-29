@@ -50,7 +50,8 @@ export function criarPainelNeural(enviar: (comando: ComandoNeural) => boolean) {
       });
       el('validacao-neural').replaceChildren(...linhas);
       const decisao = atual?.decisao;
-      el('neural-instante').textContent = decisao
+      el('neural-instante').textContent = atual?.operacao && atual.operacao.modo !== 'paradigmas'
+        ? 'Avaliador AND inativo neste modo. Acompanhe a política aplicada na aba correspondente.' : decisao
         ? `Passo ${decisao.step} · ${nomes[atual?.modelo_neural ?? 'AND_referencia']} · elegibilidade para abertura da fase.`
         : 'Aguardando avaliações do motor.';
       el('diagnostico-neural').replaceChildren(...(decisao?.avaliacoes ?? []).flatMap(a => {

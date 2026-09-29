@@ -173,10 +173,11 @@ def test_integridade_e_distancia_em_filas_mistas_durante_varios_ciclos():
         assert all(not motor.controle.conflitos[a][b] for a in permissoes for b in ocupados)
         assert all(not motor.controle.conflitos[a][b] for a, b in combinations(ocupados, 2))
         for origem in 'NSLO':
-            fila = sorted([p for p in estado.participantes if p.origem == origem], key=lambda p: -motor._distancias[p.id])
-            for a, b in zip(fila, fila[1:]):
-                folga = motor._distancias[a.id] - motor._distancias[b.id] - (a.dimensoes.comprimento + b.dimensoes.comprimento) / 2
-                assert folga >= PERFIS[b.categoria].distancia_minima - 1e-6
+            for faixa in ('externa', 'interna'):
+                fila = sorted([p for p in estado.participantes if p.origem == origem and p.faixa == faixa], key=lambda p: -motor._distancias[p.id])
+                for a, b in zip(fila, fila[1:]):
+                    folga = motor._distancias[a.id] - motor._distancias[b.id] - (a.dimensoes.comprimento + b.dimensoes.comprimento) / 2
+                    assert folga >= PERFIS[b.categoria].distancia_minima - 1e-6
         assert len(estado.participantes) + len(estado.solicitacoes) + estado.metricas['total']['concluidos'] == 32
     assert estado.metricas['total']['concluidos'] == 32
 
@@ -223,13 +224,13 @@ def test_pedestres_reservam_percurso_sem_sobrepor_novos_admitidos():
 
 def test_metricas_preservam_espera_externa_e_interna_dos_nao_concluidos():
     motor = Motor(configuracao_controle=ConfiguracaoControle(liberacao_passos=1000))
-    for i in range(16):
+    for i in range(32):
         inserir(motor, identificador=str(i))
     estado = ate(motor, 400)
     total = estado.metricas['total']
     assert total['concluidos'] == total['vazao_por_minuto'] == 0
-    assert total['ativos'] == 13 and total['pendentes'] == 3
-    assert total['espera_pendentes_externa_total'] == pytest.approx(3 * (estado.simulation_time - 0.1))
+    assert total['ativos'] == 26 and total['pendentes'] == 6
+    assert total['espera_pendentes_externa_total'] == pytest.approx(6 * (estado.simulation_time - 0.1))
     assert total['espera_ativos_interna_total'] == sum(p.espera_interna for p in estado.participantes)
     assert total['espera_ativos_externa_total'] == pytest.approx(sum(p.instante_inserido - p.instante_solicitado for p in estado.participantes))
     assert total['espera_ativos_interna_total'] > 0

@@ -134,8 +134,10 @@ test('separadores preservam rascunhos, funcionam por teclado e não enviam coman
   await expect(page.locator('#controlador')).toHaveValue('funcional');
   await expect(page.locator('#painel-neurais')).toBeHidden();
   await paradigmas.press('End');
-  await expect(neurais).toBeFocused();
-  await neurais.press('Home');
+  const urbano = page.getByRole('tab', { name: 'Semáforo urbano', exact: true });
+  await expect(urbano).toBeFocused();
+  await expect(page.locator('#painel-urbano')).toBeVisible();
+  await urbano.press('Home');
   await expect(paradigmas).toBeFocused();
   expect(enviados).toEqual([]);
 });

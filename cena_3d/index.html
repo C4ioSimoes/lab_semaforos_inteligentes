@@ -19,6 +19,9 @@
       <div id="status" class="status" data-estado="conectando" role="status">Conectando…</div>
       <p id="mensagem-conexao" class="ajuda">Aguardando o motor.</p>
       <div class="tempo"><span>Tempo simulado</span><div><output id="tempo">—</output><span> s</span></div></div>
+      <button id="resetar-simulacao" type="button" disabled aria-describedby="ajuda-reset">Resetar simulação</button>
+      <p id="ajuda-reset" class="nota">Zera tempo, participantes, filas e métricas. Mantém o modo e a geração selecionados.</p>
+      <p id="resultado-reset" class="ajuda" role="status"></p>
       <dl class="dados">
         <div><dt>Fase ativa</dt><dd id="fase">—</dd></div>
         <div><dt>Veículos na cena</dt><dd id="carros-ativos">—</dd></div>
@@ -36,9 +39,11 @@
       <details class="avancado" id="configuracoes-experimento">
         <summary>Configurações do experimento</summary>
         <div class="conteudo-avancado">
+        <p id="modo-ativo" class="modo-ativo" role="status">Modo ativo: aguardando motor.</p>
         <div id="separadores-controle" class="separadores" role="tablist" aria-label="Modo de controle">
           <button id="aba-paradigmas" type="button" role="tab" aria-selected="true" aria-controls="painel-paradigmas">Paradigmas</button>
           <button id="aba-neurais" type="button" role="tab" aria-selected="false" aria-controls="painel-neurais" tabindex="-1">Redes neurais</button>
+          <button id="aba-urbano" type="button" role="tab" aria-selected="false" aria-controls="painel-urbano" tabindex="-1">Semáforo urbano</button>
         </div>
         <div id="painel-paradigmas" role="tabpanel" aria-labelledby="aba-paradigmas" tabindex="0">
         <section class="painel-controlador" aria-label="Controlador e prioridades">
@@ -61,6 +66,17 @@
         <div id="painel-neurais" role="tabpanel" aria-labelledby="aba-neurais" tabindex="0" hidden>
           <section class="painel-controlador" aria-label="Redes neurais">
             <p class="sobretitulo">AVALIAÇÃO</p><h2>Redes neurais</h2>
+            <p>O experimento AND abaixo atende ao enunciado. A aplicação no trânsito usa outro treinamento para comparar filas, espera e veículos em aproximação.</p>
+            <label for="rede-transito">Rede aplicada ao trânsito</label>
+            <select id="rede-transito"><option value="perceptron">Perceptron</option><option value="adaline">Adaline</option></select>
+            <button id="ativar-neural-transito" type="button" disabled>Ativar rede no trânsito</button>
+            <p class="nota">As redes escolhem entre fases e podem prolongar o verde. Emergências, espera prolongada e proteção das travessias são tratadas explicitamente.</p>
+            <p id="resultado-neural-transito" role="status"></p>
+            <div id="treinamento-transito" class="nota"></div>
+            <p class="nota">Entradas: bias, diferença de fila / 20, diferença de espera / 60, diferença de aproximações / 20 e indicador de troca.</p>
+            <div id="calculo-transito" class="calculo-neural-aplicado"></div>
+            <h3>Experimento obrigatório: porta AND</h3>
+            <p>Este avaliador atua no modo Paradigmas. Alterá-lo não ativa a aplicação neural no trânsito.</p>
             <p id="disponibilidade-neural" class="ajuda">Aguardando validação dos pesos pelo motor.</p>
             <form id="form-neural">
               <label for="modelo-neural">Modelo neural</label>
@@ -78,18 +94,33 @@
             <div id="validacao-neural" class="ajuda"></div>
             <p class="nota">x1: solicitação de atendimento; x2: admissibilidade temporal e de conflitos. Na baseline, a solicitação vem da sequência fixa; nos adaptativos, da demanda.</p>
           </section>
-        </div>
-
-          <p id="estado-controle" class="ajuda"></p>
-          <p id="validacao-controle" class="ajuda"></p>
-          <p id="decisao-controlador" class="ajuda"></p>
-          <details><summary>Avaliação das fases</summary><div id="avaliacoes-fases" class="ajuda"></div></details>
         <section class="diagnostico-demanda" aria-label="Diagnóstico Neural">
           <h2>Diagnóstico Neural</h2>
           <p id="neural-instante" class="ajuda">Aguardando avaliações do motor.</p>
           <div id="diagnostico-neural"></div>
           <p class="nota">Saída +1: elegível; −1: não elegível. A soma ponderada é um valor linear. As entradas representam o instante da decisão, antes da transição.</p>
         </section>
+        </div>
+
+        <div id="painel-urbano" role="tabpanel" aria-labelledby="aba-urbano" tabindex="0" hidden>
+          <section class="painel-controlador" aria-label="Controle urbano">
+            <p class="sobretitulo">FILAS E EMERGÊNCIAS</p><h2>Semáforo urbano</h2>
+            <p>O verde acompanha a demanda: mantém o fluxo enquanto for útil e atende a outra via quando o benefício da troca aumenta.</p>
+            <ul><li>Considera filas próximas, aproximações e tempo de espera.</li><li>Prioriza emergências e evita que uma via com poucos veículos fique esquecida.</li><li>Preserva amarelo, liberação e travessias iniciadas.</li></ul>
+            <button id="ativar-urbano" type="button" disabled>Ativar semáforo urbano</button>
+            <p id="resultado-urbano" role="status"></p>
+            <p class="nota">Política independente dos paradigmas e dos modelos neurais. Os parâmetros são próprios deste simulador; desempenho depende da demanda.</p>
+            <h3>Resultados medidos</h3>
+            <p>Comparação com as mesmas sementes e chegadas, em execuções separadas. Estes resultados não são as métricas da sessão atual.</p>
+            <button id="ver-comparacao" type="button">Ver comparação medida</button>
+            <div id="comparacao-transito" aria-live="polite"></div>
+          </section>
+        </div>
+          <p id="estado-controle" class="ajuda"></p>
+          <p id="validacao-controle" class="ajuda"></p>
+          <p id="decisao-controlador" class="ajuda"></p>
+          <details><summary>Avaliação das fases</summary><div id="avaliacoes-fases" class="ajuda"></div></details>
+
         <section class="diagnostico-demanda" aria-label="Exportação de experimentos">
           <h2>Exportar experimento</h2>
           <button id="exportar-eventos" type="button" disabled>Exportar Eventos (JSON)</button>

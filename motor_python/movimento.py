@@ -1,6 +1,6 @@
 """Geometria longitudinal e parâmetros didáticos por categoria."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import pi
 
 from .modelos import Dimensoes, Posicao
@@ -51,10 +51,20 @@ class Trajetoria:
         )
 
 
-# Faixa externa de entrada de cada braço, correspondente à geometria do M1.
+# Centros das faixas de 3 unidades desenhadas em criarCruzamento.
+FAIXAS = ("externa", "interna")
 TRAJETORIAS = {
     "N": Trajetoria(-4.5, -28, 0, 1, 0, "S"),
     "S": Trajetoria(4.5, 28, 0, -1, pi, "N"),
     "L": Trajetoria(28, -4.5, -1, 0, -pi / 2, "O"),
     "O": Trajetoria(-28, 4.5, 1, 0, pi / 2, "L"),
+}
+
+TRAJETORIAS_POR_FAIXA = {
+    (origem, faixa): replace(
+        trajetoria,
+        x=trajetoria.x if origem in "LO" or faixa == "externa" else trajetoria.x / 3,
+        z=trajetoria.z if origem in "NS" or faixa == "externa" else trajetoria.z / 3,
+    )
+    for origem, trajetoria in TRAJETORIAS.items() for faixa in FAIXAS
 }

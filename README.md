@@ -1,5 +1,9 @@
 <div align="center">
 
+## Três modos de apresentação
+
+O laboratório agora separa **Paradigmas**, **Redes neurais** (AND obrigatória e aplicação adicional no trânsito) e **Semáforo urbano** (controle próprio com verde variável). Consulte o [roteiro das três disciplinas](docs/tres_disciplinas.md) e a [comparação medida](experimento_transito/relatorio.md). As implementações dos quatro paradigmas e o notebook AND foram preservados. As seções abaixo descrevem também o experimento original.
+
 # 🚦 Laboratório de Semáforos Inteligentes
 
 **Um cruzamento 3D para explorar tráfego, paradigmas de programação e redes neurais.**
@@ -29,7 +33,7 @@ O projeto reúne uma baseline de ciclo fixo, **quatro implementações independe
 | Recurso | Na prática |
 | --- | --- |
 | **Cruzamento 3D** | Câmera orbital, zoom, vista superior, semáforos e participantes animados. |
-| **Trânsito e pedestres** | Carros, motos, ônibus, ambulâncias e travessias coletivas, com filas e retenção no vermelho. |
+| **Trânsito e pedestres** | Carros, motos, ônibus e ambulâncias nas duas faixas de cada sentido, com filas independentes, retenção no vermelho e travessias coletivas. |
 | **Demanda automática** | Chegadas Poisson, semente configurável pelo protocolo e intensidade ajustável na interface. |
 | **Quatro paradigmas** | A mesma política adaptativa escrita em estilo imperativo, orientado a objetos, funcional e lógico. |
 | **Prioridades** | Emergências, espera acima do limiar, ônibus e volume de demanda, respeitando as transições e ocupações. |
