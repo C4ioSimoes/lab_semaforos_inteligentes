@@ -25,12 +25,12 @@ export function conectarMotor(
 
   function aguardarDados() {
     clearTimeout(inatividade);
-    inatividade = setTimeout(() => mudar('desatualizado', 'Sem novos instantâneos há 3 s. Último estado preservado.'), 3000);
+    inatividade = setTimeout(() => mudar('desatualizado', 'Sem atualização há 3 segundos. Aguardando dados…'), 3000);
   }
 
   function abrir() {
     if (encerrado) return;
-    mudar('conectando', ultimo ? 'Reconectando. Último estado preservado.' : 'Conectando ao servidor Python.');
+    mudar('conectando', ultimo ? 'Reconectando…' : 'Conectando…');
     try {
       const url = new URL(endereco);
       if (!['ws:', 'wss:'].includes(url.protocol)) throw new Error('Protocolo inválido');
@@ -42,7 +42,7 @@ export function conectarMotor(
     const atual = socket;
     atual.onopen = () => {
       if (encerrado || socket !== atual) return;
-      mudar('aguardando', 'Conexão aberta. Aguardando sincronização com o motor.');
+      mudar('aguardando', 'Carregando simulação…');
       aguardarDados();
     };
     atual.onmessage = (evento) => {
@@ -57,7 +57,7 @@ export function conectarMotor(
         }
         recebido = mensagem;
       } catch {
-        mudar('erro', 'Mensagem inválida recebida. Último estado válido preservado.');
+        mudar('erro', 'Dados inválidos. Mantendo a última atualização.');
         return;
       }
       if (execucoesAnteriores.has(recebido.run_id)) return;
@@ -74,13 +74,13 @@ export function conectarMotor(
       aguardarDados();
     };
     atual.onerror = () => {
-      if (!encerrado && socket === atual) mudar('erro', 'Falha na conexão com o motor. Aguardando reconexão.');
+      if (!encerrado && socket === atual) mudar('erro', 'Sem conexão. Tentando reconectar…');
     };
     atual.onclose = () => {
       if (encerrado || socket !== atual) return;
       clearTimeout(inatividade);
       const espera = Math.min(1000 * 2 ** tentativa++, 8000);
-      mudar('desconectado', `Conexão perdida; estado desatualizado. Nova tentativa em ${espera / 1000} s.`);
+      mudar('desconectado', `Sem conexão. Nova tentativa em ${espera / 1000} s.`);
       reconexao = setTimeout(abrir, espera);
     };
   }

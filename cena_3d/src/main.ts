@@ -1,5 +1,8 @@
 import './style.css';
+import { nomeFase } from './rotulos';
 import { criarReset } from './reset';
+import { criarVelocidade } from './velocidade';
+import { criarVisualizacao } from './visualizacao';
 import { criarPainelTransito } from './transito';
 import { criarPainelNeural } from './neural';
 import { criarExportacoes } from './exportacao';
@@ -16,6 +19,7 @@ function elemento(id: string): HTMLElement {
   return encontrado;
 }
 const separadores = criarSeparadores(elemento('separadores-controle'));
+const visualizacao = criarVisualizacao();
 let cena: ReturnType<typeof criarCena> | undefined;
 try {
   cena = criarCena(elemento('cena'));
@@ -35,7 +39,7 @@ const titulos: Record<EstadoConexao, string> = {
   desatualizado: 'Estado desatualizado', desconectado: 'Desconectado', erro: 'Falha na conexão',
 };
 const formatador = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 3 });
-type Destino = 'resultado-geracao' | 'resultado-controlador' | 'resultado-neural' | 'resultado-neural-transito' | 'resultado-urbano' | 'resultado-reset';
+type Destino = 'resultado-velocidade' | 'resultado-geracao' | 'resultado-controlador' | 'resultado-neural' | 'resultado-neural-transito' | 'resultado-urbano' | 'resultado-reset';
 const pendentes = new Map<string, Destino>();
 const painelGeracao = criarPainelGeracao(enviarComando);
 const painelControlador = criarPainelControlador(enviarComando);
@@ -43,6 +47,7 @@ const painelNeural = criarPainelNeural(enviarComando);
 const painelTransito = criarPainelTransito(enviarComando);
 const exportacoes = criarExportacoes(url);
 const painelReset = criarReset(enviarComando);
+const painelVelocidade = criarVelocidade(enviarComando);
 let ultimaExecucao: string | undefined;
 const conexao = conectarMotor(url, (estado) => {
   if (ultimaExecucao !== estado.run_id) pendentes.clear();
@@ -50,7 +55,8 @@ const conexao = conectarMotor(url, (estado) => {
   painelReset.atualizar(estado.run_id);
   elemento('tempo').textContent = formatador.format(estado.simulation_time);
   elemento('passo').textContent = String(estado.step);
-  elemento('fase').textContent = estado.fase ?? 'Aguardando';
+  elemento('fase').textContent = estado.estado_transicao === 'liberacao' ? 'Aguardando liberação'
+    : estado.estado_transicao === 'encerramento' ? 'Finalizando passagem' : nomeFase(estado.fase);
   elemento('execucao').textContent = estado.run_id;
   cena?.atualizarParticipantes(estado.run_id, estado.participantes);
   cena?.atualizarSemaforos(estado);
@@ -72,9 +78,10 @@ const conexao = conectarMotor(url, (estado) => {
   elemento('vazao').textContent = estado.metricas ? formatador.format(estado.metricas.total.vazao_por_minuto) : '—';
   elemento('espera-concluidos').textContent = estado.metricas ? `${formatador.format(estado.metricas.total.espera_concluidos_total_media)} s` : '—';
   const interrompido = !!estado.demanda?.motivo_interrupcao;
+  painelVelocidade.atualizar(estado.velocidade_simulacao, estado.run_id, interrompido);
   painelControlador.atualizar(controle, estado.run_id, interrompido);
   painelNeural.atualizar(controle, estado.run_id, interrompido);
-  painelTransito.atualizar(controle, interrompido);
+  painelTransito.atualizar(controle, interrompido, estado.run_id);
   painelGeracao.atualizar(estado.demanda, estado.run_id);
   elemento('carros-ativos').textContent = String(estado.participantes.filter((p) => p.categoria !== 'pedestre').length);
   elemento('pedestres-ativos').textContent = String(estado.participantes.filter((p) => p.categoria === 'pedestre').length);
@@ -84,15 +91,16 @@ const conexao = conectarMotor(url, (estado) => {
 }, (estado, mensagem) => {
   elemento('status').dataset.estado = estado;
   elemento('status').textContent = titulos[estado];
-  elemento('mensagem-conexao').textContent = estado === 'conectado' ? 'Simulação sincronizada' : mensagem;
+  elemento('mensagem-conexao').textContent = estado === 'conectado' ? '' : mensagem;
   painelGeracao.definirConexao(estado === 'conectado');
   painelControlador.definirConexao(estado === 'conectado');
   painelNeural.definirConexao(estado === 'conectado');
   painelTransito.definirConexao(estado === 'conectado');
   exportacoes.definirConexao(estado === 'conectado');
   painelReset.definirConexao(estado === 'conectado');
+  painelVelocidade.definirConexao(estado === 'conectado');
   if (estado !== 'conectado') {
-    for (const destino of pendentes.values()) elemento(destino).textContent = 'Há pedidos sem confirmação. Aguardando sincronização com o motor.';
+    for (const destino of pendentes.values()) elemento(destino).textContent = 'Sem confirmação. Reconectando…';
     pendentes.clear();
   }
 }, (resposta) => {
@@ -100,16 +108,23 @@ const conexao = conectarMotor(url, (estado) => {
   if (!destino || !resposta.command_id) return;
   pendentes.delete(resposta.command_id);
   const confirmacao = resposta.confirmacao;
+  if (destino === 'resultado-velocidade') {
+    painelVelocidade.confirmar(resposta.command_id, confirmacao.status === 'aplicado', confirmacao.erro);
+    return;
+  }
   if (destino === 'resultado-reset') painelReset.confirmar(resposta.command_id, confirmacao.status === 'aplicado');
   if (destino === 'resultado-geracao') painelGeracao.confirmar(resposta.command_id, confirmacao.status === 'aplicado');
   if (destino === 'resultado-neural') painelNeural.confirmar(resposta.command_id, confirmacao.status === 'aplicado');
   if (destino === 'resultado-controlador') painelControlador.confirmar(resposta.command_id, confirmacao.status === 'aplicado');
+  const novaEscolha = (destino === 'resultado-neural-transito' || destino === 'resultado-urbano')
+    && painelTransito.confirmar(resposta.command_id, confirmacao.status === 'aplicado');
   elemento(destino).textContent = confirmacao.status === 'aplicado'
-    ? destino === 'resultado-reset' ? 'Simulação reiniciada. Configurações mantidas.' : destino === 'resultado-geracao' ? 'Geração atualizada.' : `Pedido aplicado no passo ${confirmacao.passo_aplicacao}.`
-    : `Pedido rejeitado: ${confirmacao.erro}`;
+    ? novaEscolha && destino === 'resultado-neural-transito' ? 'Nova escolha pendente. Clique em Ativar rede neural.'
+      : destino === 'resultado-reset' ? 'Simulação reiniciada.' : destino === 'resultado-geracao' ? 'Entrada de trânsito atualizada.' : 'Configuração aplicada.'
+    : `Não foi possível aplicar: ${confirmacao.erro}`;
 });
 function enviarComando(comando: ComandoCliente) {
-  const destino: Destino = comando.tipo === 'resetar_simulacao' ? 'resultado-reset' : comando.tipo === 'configurar_operacao' ? (comando.parametros.modo === 'urbano' ? 'resultado-urbano' : 'resultado-neural-transito') : comando.tipo === 'configurar_modelo_neural' ? 'resultado-neural' : comando.tipo === 'configurar_controlador' ? 'resultado-controlador' : 'resultado-geracao';
+  const destino: Destino = comando.tipo === 'configurar_velocidade' ? 'resultado-velocidade' : comando.tipo === 'resetar_simulacao' ? 'resultado-reset' : comando.tipo === 'configurar_operacao' ? (comando.parametros.modo === 'urbano' ? 'resultado-urbano' : 'resultado-neural-transito') : comando.tipo === 'configurar_modelo_neural' ? 'resultado-neural' : comando.tipo === 'configurar_controlador' ? 'resultado-controlador' : 'resultado-geracao';
   pendentes.set(comando.command_id, destino);
   if (conexao.enviar(comando)) {
     elemento(destino).textContent = 'Atualizando…';
@@ -121,6 +136,8 @@ function enviarComando(comando: ComandoCliente) {
 }
 function descartar() {
   separadores.descartar(); conexao.desconectar(); painelGeracao.descartar(); painelReset.descartar();
+  painelVelocidade.descartar();
+  visualizacao.descartar();
   painelControlador.descartar(); painelNeural.descartar(); painelTransito.descartar(); exportacoes.descartar(); cena?.descartar();
   elemento('vista-superior').removeEventListener('click', superior);
   elemento('restaurar-vista').removeEventListener('click', restaurar);

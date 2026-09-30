@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from .modelos import (
     Comando, ConfirmacaoComando, Evento, Instantaneo, ParametrosInsercao,
-    Participante, RespostaComando, ParametrosPedestre, ConfiguracaoControlador, ConfiguracaoNeural, ConfiguracaoOperacao, ParametrosReset, Decisao,
+    Participante, RespostaComando, ParametrosPedestre, ConfiguracaoControlador, ConfiguracaoNeural, ConfiguracaoOperacao, ConfiguracaoVelocidade, ParametrosReset, Decisao,
 )
 from .movimento import DISTANCIA_RETENCAO, FOLGA_RETENCAO, PERFIS, TRAJETORIAS, BORDA_VIA, ORIGEM_TRAJETORIA, FAIXAS, TRAJETORIAS_POR_FAIXA
 from .gerador import ConfiguracaoGerador, GeradorDemanda
@@ -27,6 +27,7 @@ from controladores.adaptador_prolog import FalhaProlog
 from controladores.contratos import Estado as EstadoDecisao, Fase, Solicitacao, Avaliacao
 
 PASSO_SEGUNDOS = 0.1
+INTERVALO_PUBLICACAO = 1 / 20  # Limite de 20 atualizações/s reais na execução acelerada.
 LIMITE_INSTANTANEOS_PENDENTES = 100
 MensagemMotor = Instantaneo | RespostaComando
 Responder = Callable[[RespostaComando], None]
@@ -35,7 +36,7 @@ Responder = Callable[[RespostaComando], None]
 @dataclass
 class RegistroComando:
     comando: Comando
-    parametros: ParametrosInsercao | ParametrosPedestre | ConfiguracaoGerador | ConfiguracaoControlador | ConfiguracaoNeural | ConfiguracaoOperacao | ParametrosReset
+    parametros: ParametrosInsercao | ParametrosPedestre | ConfiguracaoGerador | ConfiguracaoControlador | ConfiguracaoNeural | ConfiguracaoOperacao | ConfiguracaoVelocidade | ParametrosReset
     respostas: list[Responder] = field(default_factory=list)
     resultado: RespostaComando | None = None
 
@@ -47,6 +48,7 @@ class Motor:
             raise ValueError("Limites de capacidade devem ser positivos.")
         self._run_id = str(uuid4())
         self._step = 0
+        self.velocidade_simulacao = 1
         self._assinantes: set[asyncio.Queue[MensagemMotor | None]] = set()
         self._comandos: dict[str, RegistroComando] = {}
         self._resets_confirmados: dict[str, RegistroComando] = {}
@@ -87,6 +89,7 @@ class Motor:
             run_id=self._run_id,
             step=self._step,
             simulation_time=self._step / 10,
+            velocidade_simulacao=self.velocidade_simulacao,
             fase=self.controle.fase,
             estado_transicao=self.controle.estado,
             ocupacoes=self._ocupacoes(),
@@ -177,14 +180,15 @@ class Motor:
         except ValidationError:
             rejeitar("Comando inválido: informe command_id, tipo e parametros, sem campos extras.")
             return
-        if comando.tipo not in {"inserir_participante", "configurar_gerador", "configurar_controlador", "configurar_modelo_neural", "configurar_operacao", "resetar_simulacao"}:
-            rejeitar("Tipo de comando não suportado. Use inserir_participante, configurar_gerador, configurar_controlador ou configurar_modelo_neural.")
+        if comando.tipo not in {"inserir_participante", "configurar_gerador", "configurar_controlador", "configurar_modelo_neural", "configurar_operacao", "configurar_velocidade", "resetar_simulacao"}:
+            rejeitar("Tipo de comando não suportado.")
             return
         if comando.confirmacao is not None or comando.passo_solicitado is not None:
             rejeitar("O motor define a confirmação e o passo de aplicação neste incremento.")
             return
         try:
             classe = (ParametrosReset if comando.tipo == "resetar_simulacao" else
+                      ConfiguracaoVelocidade if comando.tipo == "configurar_velocidade" else
                       ConfiguracaoOperacao if comando.tipo == "configurar_operacao" else
                       ConfiguracaoNeural if comando.tipo == "configurar_modelo_neural" else
                       ConfiguracaoControlador if comando.tipo == "configurar_controlador" else
@@ -193,6 +197,9 @@ class Motor:
             parametros = classe.model_validate(comando.parametros)
         except ValidationError as erro:
             detalhe = erro.errors()[0]
+            if comando.tipo == "configurar_velocidade":
+                rejeitar("Velocidade inválida. Use um multiplicador inteiro de 1 a 24, sem campos extras.")
+                return
             if comando.tipo in {"configurar_controlador", "configurar_modelo_neural", "configurar_operacao"}:
                 rejeitar(f"Configuração de controlador inválida: {detalhe['msg']}")
                 return
@@ -236,6 +243,7 @@ class Motor:
         novo.configuracao_controlador = self.configuracao_controlador.model_copy(deep=True)
         novo.controlador = criar_controlador(novo.configuracao_controlador.controlador, novo.controle.configuracao)
         novo.operacao = self.operacao.model_copy(deep=True)
+        novo.velocidade_simulacao = self.velocidade_simulacao
         novo.controle.adaptativo = novo.operacao.modo != "paradigmas"
         novo.modelo_neural, novo.neurais, novo.transito = self.modelo_neural, self.neurais, self.transito
         novo.gerador.configurar(self.gerador.configuracao, 0)
@@ -277,6 +285,12 @@ class Motor:
                     aplicado = True
                 except FalhaProlog as erro:
                     aplicado, erro_comando = False, f"Não foi possível reiniciar o controlador: {erro}"
+            elif isinstance(registro.parametros, ConfiguracaoVelocidade):
+                anterior = self.velocidade_simulacao
+                self.velocidade_simulacao = registro.parametros.multiplicador
+                self._registrar("velocidade_configurada", "manual", {"anterior": anterior},
+                                {"multiplicador": self.velocidade_simulacao})
+                aplicado = True
             elif isinstance(registro.parametros, ConfiguracaoOperacao):
                 if registro.parametros.modo == "neural" and self.transito.erro:
                     aplicado, erro_comando = False, self.transito.erro
@@ -662,12 +676,18 @@ class Motor:
         self._alertas_espera = alertas
         return True
 
-    def avancar(self) -> Instantaneo:
+    def avancar(self, *, publicar: bool = True) -> Instantaneo:
+        estado = self._avancar(publicar=publicar, capturar=True)
+        assert estado is not None
+        return estado
+
+    def _avancar(self, *, publicar: bool, capturar: bool = False) -> Instantaneo | None:
         reset_pendente = any(isinstance(self._comandos[c].parametros, ParametrosReset) for c in self._pendentes)
         if self._motivo_interrupcao and not reset_pendente:
             estado = self.instantaneo()
-            for fila in tuple(self._assinantes):
-                self.enfileirar(fila, estado)
+            if publicar:
+                for fila in tuple(self._assinantes):
+                    self.enfileirar(fila, estado)
             return estado
         self._step += 1
         reiniciado = self._aplicar_comandos()
@@ -683,11 +703,16 @@ class Motor:
             self._mover_pedestres()
         self.metricas.registrar_filas(list(self._participantes.values()),
             [p for fila in self._entradas.values() for p in fila], PASSO_SEGUNDOS)
+        # Os acumuladores acima sempre avançam. Montar cópias completas só é
+        # necessário para a tela, a amostra histórica ou o chamador síncrono.
+        if not (publicar or capturar or self._step % 10 == 0 or self._motivo_interrupcao):
+            return None
         estado = self.instantaneo()
         if self._step % 10 == 0:
             self._historico_metricas.append(self._amostra_metricas(estado))
-        for fila in tuple(self._assinantes):
-            self.enfileirar(fila, estado)
+        if publicar or self._motivo_interrupcao:
+            for fila in tuple(self._assinantes):
+                self.enfileirar(fila, estado)
         return estado
 
     def configuracao_experimento(self):
@@ -696,6 +721,7 @@ class Motor:
                 "operacao": self.operacao.model_dump(),
                 "modelo_neural": self.modelo_neural, "gerador": self.gerador.configuracao.model_dump(mode="json"),
                 "passo_segundos": PASSO_SEGUNDOS,
+                "velocidade_simulacao": self.velocidade_simulacao,
                 "limites": {"ativos": self._limite_ativos, "pendentes": self._limite_pendentes}}
 
     def _amostra_metricas(self, estado):
@@ -737,9 +763,19 @@ class Motor:
 
     async def executar(self) -> None:
         loop = asyncio.get_running_loop()
-        proximo_passo = loop.time() + PASSO_SEGUNDOS
+        ultima_publicacao = loop.time()
+        proximo_passo = ultima_publicacao + PASSO_SEGUNDOS / self.velocidade_simulacao
         while True:
             await asyncio.sleep(max(0, proximo_passo - loop.time()))
-            self.avancar()
-            # Atrasos de agendamento não alteram Δt nem pulam passos simulados.
-            proximo_passo += PASSO_SEGUNDOS
+            agora = loop.time()
+            # Só a transmissão visual é limitada. Cálculos e histórico continuam
+            # em TODOS os passos; comandos e resets recebem estado imediato.
+            publicar = (self.velocidade_simulacao == 1 or bool(self._pendentes)
+                        or agora - ultima_publicacao >= INTERVALO_PUBLICACAO)
+            self._avancar(publicar=publicar)
+            if publicar:
+                ultima_publicacao = agora
+            fator = 1 if self._motivo_interrupcao else self.velocidade_simulacao
+            # Sem dívida de tempo: sob carga, reduz o ritmo real, sem pular passos
+            # nem aumentar Δt. sleep(0) também permite atender comandos e sockets.
+            proximo_passo = max(proximo_passo + PASSO_SEGUNDOS / fator, loop.time())

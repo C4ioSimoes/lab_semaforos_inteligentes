@@ -20,14 +20,14 @@ test('seletor envia comando e não altera diagnóstico antes da confirmação of
   await page.locator('#configuracoes-experimento > summary').click();
   await expect(page.locator('#aplicar-controlador')).toBeEnabled();
   await expect(page.locator('#limiar-espera')).toBeDisabled();
-  await page.getByLabel('Controlador', { exact: true }).selectOption('funcional');
-  await page.getByLabel('Limiar de espera (s simulados)').fill('25');
-  await page.getByLabel('Atender emergências').uncheck();
+  await page.getByLabel('Tipo de regra', { exact: true }).selectOption('funcional');
+  await page.getByLabel('Dar prioridade após (segundos)').fill('25');
+  await page.getByLabel('Priorizar ambulâncias').uncheck();
   await page.getByLabel('Priorizar ônibus').check();
   socket!.send(estado(2));
   await expect(page.locator('#passo')).toHaveText('2');
   await expect(page.locator('#limiar-espera')).toHaveValue('25');
-  await page.getByRole('button', { name: 'Aplicar controlador' }).click();
+  await page.getByRole('button', { name: 'Ativar regras' }).click();
   await expect.poll(() => comandos.length).toBe(1);
   expect(comandos[0].tipo).toBe('configurar_controlador');
   expect(comandos[0].parametros).toEqual({ controlador: 'funcional', limiar_espera: 25, prioridade_ambulancia: false, prioridade_onibus: true });
@@ -49,8 +49,8 @@ test('confirmação atrasada preserva edição posterior e rejeição exibe moti
   });
   await page.goto('/');
   await page.locator('#configuracoes-experimento > summary').click();
-  await page.getByLabel('Controlador', { exact: true }).selectOption('imperativo');
-  await page.getByRole('button', { name: 'Aplicar controlador' }).click();
+  await page.getByLabel('Tipo de regra', { exact: true }).selectOption('imperativo');
+  await page.getByRole('button', { name: 'Ativar regras' }).click();
   await expect.poll(() => comandos.length).toBe(1);
   await page.locator('#limiar-espera').fill('45');
   socket!.send(JSON.stringify({ tipo: 'confirmacao_comando', command_id: comandos[0].command_id,
@@ -58,7 +58,7 @@ test('confirmação atrasada preserva edição posterior e rejeição exibe moti
   socket!.send(estado(2, comandos[0].parametros));
   await expect(page.locator('#passo')).toHaveText('2');
   await expect(page.locator('#limiar-espera')).toHaveValue('45');
-  await page.getByRole('button', { name: 'Aplicar controlador' }).click();
+  await page.getByRole('button', { name: 'Ativar regras' }).click();
   await expect.poll(() => comandos.length).toBe(2);
   socket!.send(JSON.stringify({ tipo: 'confirmacao_comando', command_id: comandos[1].command_id,
     confirmacao: { status: 'rejeitado', passo_aplicacao: null, erro: 'Configuração inválida.' } }));
@@ -85,8 +85,8 @@ test('Prolog confirma seleção e mostra falha oficial sem substituir controlado
   });
   await page.goto('/');
   await page.locator('#configuracoes-experimento > summary').click();
-  await page.getByLabel('Controlador', { exact: true }).selectOption('logico');
-  await page.getByRole('button', { name: 'Aplicar controlador' }).click();
+  await page.getByLabel('Tipo de regra', { exact: true }).selectOption('logico');
+  await page.getByRole('button', { name: 'Ativar regras' }).click();
   await expect.poll(() => comandos.length).toBe(1);
   expect(comandos[0].parametros.controlador).toBe('logico');
   await expect(page.locator('#estado-controle')).toContainText('Política fixa');
@@ -123,8 +123,8 @@ test('ativação Prolog rejeitada mantém identificação do controlador ativo',
   });
   await page.goto('/');
   await page.locator('#configuracoes-experimento > summary').click();
-  await page.getByLabel('Controlador', { exact: true }).selectOption('logico');
-  await page.getByRole('button', { name: 'Aplicar controlador' }).click();
+  await page.getByLabel('Tipo de regra', { exact: true }).selectOption('logico');
+  await page.getByRole('button', { name: 'Ativar regras' }).click();
   await expect(page.locator('#resultado-controlador')).toContainText('Seleção rejeitada');
   await expect(page.locator('#falha-controlador')).toContainText('ativo permanece baseline');
   await expect(page.locator('#estado-controle')).toContainText('Política fixa');

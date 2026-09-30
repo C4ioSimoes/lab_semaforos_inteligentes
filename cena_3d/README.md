@@ -32,8 +32,7 @@ O painel esquerdo exibe conexão, tempo, fase, veículos, pedestres, fila extern
 vazão e espera média dos percursos concluídos. A inserção manual foi removida da
 interface; o comando de inserção permanece disponível no protocolo para ensaios.
 
-Na barra acima da cena, **Geração aleatória** liga/desliga veículos e pedestres
-juntos. O slider **Intensidade do trânsito** ajusta as taxas sem botão Aplicar.
+No painel **Trânsito**, **Entrada de trânsito** liga/desliga as chegadas. **Incluir pedestres** permite interromper apenas novas chegadas de pedestres, mantendo os veículos e quem já está na simulação. O slider **Quantidade de trânsito** ajusta as taxas sem botão Aplicar.
 Desligar zera ambos os multiplicadores; participantes presentes e pedidos já
 aceitos continuam sendo atendidos. Mover o slider desligado prepara a próxima ativação.
 
@@ -43,26 +42,24 @@ base por minuto são 12 carros, 3 motos, 1 ônibus e 0,2 ambulância; por traves
 São taxas médias Poisson, não quantidades garantidas. Comandos em andamento
 preservam a última edição; rejeição e reconexão restauram o estado oficial.
 
-**Configurações do experimento** mantém paradigmas, prioridades, redes neurais,
-diagnósticos e exportações JSON/CSV recolhidos. Os separadores aceitam setas,
+**Escolher controle dos sinais** reúne Regras, Rede neural e Automático. O exercício AND fica em **Regras → Para estudar: lógica AND**, disponível apenas com Regras ativo. **Salvar resultados** e **Detalhes técnicos** mantêm downloads e diagnósticos recolhidos. O aviso **Controle** mostra a configuração aplicada pelo motor, separado das escolhas ainda não enviadas. Os separadores aceitam setas,
 Home e End. Switch e slider têm rótulos acessíveis, foco visível e controle por
-teclado; em telas estreitas a cena aparece primeiro, sem rolagem horizontal.
+teclado. Em telas estreitas os painéis começam recolhidos; os botões **Dados** e **Trânsito** abrem um painel por vez.
 
-O layout usa duas colunas e espaçamento consistente:
+A cena ocupa toda a janela. Os painéis pequenos, translúcidos e em tons neutros
+ficam sobre o 3D, com rolagem interna quando necessário. Recolher um painel não
+altera configurações nem reduz o canvas. O botão de tela cheia usa a API do
+navegador quando disponível.
 
 ```css
-main {
-  display: grid;
-  grid-template-columns: 252px minmax(0, 1fr);
-  gap: 20px;
-}
-.painel-dados {
-  padding: 22px 18px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-}
+#cena { position: fixed; inset: 0; width: 100%; height: 100dvh; }
+.painel-dados { position: fixed; top: 80px; left: 14px; width: 242px; }
 ```
+
+A escolha de pedestres é enviada por `configurar_gerador`: desligar zera
+`taxas_pedestres` e `fator_pedestres`. A opção isolada preserva taxas de veículos,
+fatores locais e semente. A escolha permanece após ajustes de intensidade,
+reconexão e reset. Pedestres já solicitados concluem seu percurso normalmente.
 
 Veja `index.html` e `src/style.css` para os componentes e regras responsivas.
 

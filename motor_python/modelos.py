@@ -65,6 +65,7 @@ class Instantaneo(Contrato):
     run_id: Identificador
     step: Passo
     simulation_time: Tempo
+    velocidade_simulacao: int = Field(default=1, strict=True, ge=1, le=24)
     fase: Identificador | None
     estado_transicao: Identificador
     ocupacoes: ObjetoJSON
@@ -119,6 +120,10 @@ class ConfiguracaoOperacao(Contrato):
 
 class ParametrosReset(Contrato):
     pass
+
+
+class ConfiguracaoVelocidade(Contrato):
+    multiplicador: int = Field(strict=True, ge=1, le=24)
 
 
 class ParametrosPedestre(Contrato):

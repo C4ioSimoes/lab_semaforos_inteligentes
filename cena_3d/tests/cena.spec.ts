@@ -92,8 +92,8 @@ test('câmera preserva centro, limita zoom e inclinação e restaura a vista', a
   expect(resultado.superior[0]).toBeCloseTo(0);
   expect(resultado.superior[2]).toBeCloseTo(0, 3);
   resultado.restaurada.forEach((valor, i) => expect(valor).toBeCloseTo(resultado.inicial[i]));
-  await page.getByRole('button', { name: 'Vista superior' }).click();
-  await page.getByRole('button', { name: 'Restaurar vista' }).click();
+  await page.getByRole('button', { name: 'Ver de cima' }).click();
+  await page.getByRole('button', { name: 'Voltar à vista inicial' }).click();
   await expect(page.locator('#erro-cena')).toBeHidden();
 });
 
@@ -106,7 +106,7 @@ test('redimensiona a cena em tela estreita sem rolagem horizontal', async ({ pag
   await expect(page.locator('#passo')).toHaveText('7');
   await expect(page.locator('#cena canvas')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole('button', { name: 'Vista superior' }).click();
+  await page.getByRole('button', { name: 'Ver de cima' }).click();
   expect(erros).toEqual([]);
 });
 
@@ -118,23 +118,23 @@ test('separadores preservam rascunhos, funcionam por teclado e não enviam coman
   });
   await page.goto('/');
   await page.locator('#configuracoes-experimento > summary').click();
-  const paradigmas = page.getByRole('tab', { name: 'Paradigmas', exact: true });
-  const neurais = page.getByRole('tab', { name: 'Redes neurais', exact: true });
-  await page.getByLabel('Controlador', { exact: true }).selectOption('funcional');
-  await page.getByLabel('Limiar de espera (s simulados)').fill('42');
+  const paradigmas = page.getByRole('tab', { name: 'Regras', exact: true });
+  const neurais = page.getByRole('tab', { name: 'Rede neural', exact: true });
+  await page.getByLabel('Tipo de regra', { exact: true }).selectOption('funcional');
+  await page.getByLabel('Dar prioridade após (segundos)').fill('42');
   await neurais.click();
   await expect(neurais).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#painel-paradigmas')).toBeHidden();
-  await expect(page.getByRole('tabpanel', { name: 'Redes neurais' })).toBeVisible();
-  await expect(page.getByLabel('Modelo neural')).toBeDisabled();
-  await expect(page.locator('#painel-neurais')).toContainText('Aguardando validação dos pesos pelo motor');
+  await expect(page.getByRole('tabpanel', { name: 'Rede neural' })).toBeVisible();
+  await expect(page.getByLabel('Modelo do exercício AND')).toBeDisabled();
+  await expect(page.locator('#painel-neurais')).not.toContainText('Modelo do exercício AND');
   await neurais.press('ArrowLeft');
   await expect(paradigmas).toBeFocused();
   await expect(page.locator('#limiar-espera')).toHaveValue('42');
   await expect(page.locator('#controlador')).toHaveValue('funcional');
   await expect(page.locator('#painel-neurais')).toBeHidden();
   await paradigmas.press('End');
-  const urbano = page.getByRole('tab', { name: 'Semáforo urbano', exact: true });
+  const urbano = page.getByRole('tab', { name: 'Automático', exact: true });
   await expect(urbano).toBeFocused();
   await expect(page.locator('#painel-urbano')).toBeVisible();
   await urbano.press('Home');
@@ -153,7 +153,38 @@ test('canvas ocupa a maior parte do desktop e não gera rótulos ou erros gráfi
   expect(canvas!.width).toBeGreaterThan(page.viewportSize()!.width * .65);
   expect(canvas!.height).toBeGreaterThan(page.viewportSize()!.height * .6);
   await expect(page.locator('.rotulos, .etiqueta-rua, .etiqueta-carro, .etiqueta-semaforo')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Vista superior' }).click();
-  await page.getByRole('button', { name: 'Restaurar vista' }).click();
+  await page.getByRole('button', { name: 'Ver de cima' }).click();
+  await page.getByRole('button', { name: 'Voltar à vista inicial' }).click();
   expect(erros).toEqual([]);
+});
+
+test('painéis recolhem sem encolher a cena e sem perder ajustes', async ({page}) => {
+  const enviados: unknown[]=[];
+  await page.routeWebSocket('**/ws', ws=>{
+    ws.send(instantaneo(0)); ws.onMessage(m=>enviados.push(m));
+  });
+  await page.goto('/');
+  const viewport=page.viewportSize()!;
+  await expect(page.locator('#cena canvas')).toHaveJSProperty('clientWidth',viewport.width);
+  await expect(page.locator('#cena canvas')).toHaveJSProperty('clientHeight',viewport.height);
+  await page.locator('#configuracoes-experimento > summary').click();
+  await page.getByLabel('Tipo de regra',{exact:true}).selectOption('funcional');
+  await page.getByLabel('Dar prioridade após (segundos)').fill('42');
+  await page.getByRole('button',{name:'Dados',exact:true}).click();
+  await page.getByRole('button',{name:'Trânsito',exact:true}).click();
+  await expect(page.locator('#painel-dados')).toBeHidden();
+  await expect(page.locator('#painel-geracao')).toBeHidden();
+  await page.getByRole('button',{name:'Dados',exact:true}).click();
+  await expect(page.locator('#limiar-espera')).toHaveValue('42');
+  await page.setViewportSize({width:390,height:844});
+  await expect(page.locator('#painel-dados')).toBeHidden();
+  await expect(page.locator('#cena canvas')).toHaveJSProperty('clientWidth',390);
+  await expect(page.locator('#cena canvas')).toHaveJSProperty('clientHeight',844);
+  await page.getByRole('button',{name:'Trânsito',exact:true}).click();
+  await expect(page.locator('#painel-geracao')).toBeVisible();
+  await page.getByRole('button',{name:'Dados',exact:true}).click();
+  await expect(page.locator('#painel-geracao')).toBeHidden();
+  await expect(page.locator('#painel-dados')).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollHeight<=innerHeight)).toBe(true);
+  expect(enviados).toEqual([]);
 });

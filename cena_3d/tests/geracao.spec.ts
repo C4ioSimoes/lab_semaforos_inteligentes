@@ -30,8 +30,8 @@ async function preparar(page: Page) {
   };
 }
 async function intensidade(page: Page, valor: number) {
-  await page.getByRole('slider').fill(String(valor));
-  await page.getByRole('slider').dispatchEvent('change');
+  await page.getByRole('slider', { name: 'Quantidade de trânsito', exact: true }).fill(String(valor));
+  await page.getByRole('slider', { name: 'Quantidade de trânsito', exact: true }).dispatchEvent('change');
 }
 
 test('layout essencial e toggle controlam simultaneamente todas as fontes', async ({ page }) => {
@@ -65,7 +65,7 @@ test('edições rápidas preservam a última intensidade e desligamento durante 
   await intensidade(page, 70);
   await intensidade(page, 100);
   motor.tick();
-  await expect(page.getByRole('slider')).toHaveValue('100');
+  await expect(page.getByRole('slider', { name: 'Quantidade de trânsito', exact: true })).toHaveValue('100');
   motor.confirmar(0);
   await expect.poll(() => motor.comandos.length).toBe(2);
   expect(motor.comandos[1].parametros.fator_global).toBe(2);
@@ -123,4 +123,83 @@ test('geração real muda intensidade e para novas chegadas sem apagar participa
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: '/tmp/transito-mobile.png', fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('desligar pedestres mantém veículos e a escolha sobrevive a ajustes e reconexão', async ({ page }) => {
+  const motor = await preparar(page);
+  const pedestres = page.getByRole('checkbox', {name:'Incluir pedestres'});
+  await expect(pedestres).toBeChecked();
+  await page.getByRole('switch').click();
+  await expect.poll(() => motor.comandos.length).toBe(1);
+  motor.confirmar(0);
+  await pedestres.uncheck();
+  await expect.poll(() => motor.comandos.length).toBe(2);
+  const anterior = motor.comandos[0].parametros, depois = motor.comandos[1].parametros;
+  expect(depois.taxas_veiculares).toEqual(anterior.taxas_veiculares);
+  expect(depois.fatores_locais).toEqual(anterior.fatores_locais);
+  expect(depois.fator_global).toBe(anterior.fator_global);
+  expect(depois.semente).toBe(anterior.semente);
+  expect(depois.fator_pedestres).toBe(0);
+  expect(Object.values(depois.taxas_pedestres)).toEqual([0,0,0,0]);
+  motor.confirmar(1);
+  await intensidade(page, 80);
+  await expect.poll(() => motor.comandos.length).toBe(3);
+  expect(motor.comandos[2].parametros.fator_global).toBeCloseTo(1.68);
+  expect(motor.comandos[2].parametros.fator_pedestres).toBe(0);
+  motor.confirmar(2);
+  await page.getByRole('switch').click();
+  await expect.poll(() => motor.comandos.length).toBe(4);
+  motor.confirmar(3);
+  await page.getByRole('switch').click();
+  await expect.poll(() => motor.comandos.length).toBe(5);
+  expect(motor.comandos[4].parametros.fator_pedestres).toBe(0);
+  motor.confirmar(4);
+  motor.desconectar();
+  await expect(pedestres).toBeDisabled();
+  await expect(pedestres).toBeEnabled();
+  await expect(pedestres).not.toBeChecked();
+  await pedestres.check();
+  await expect.poll(() => motor.comandos.length).toBe(6);
+  expect(motor.comandos[5].parametros.fator_pedestres).toBeCloseTo(1.68);
+  expect(motor.comandos[5].parametros.taxas_veiculares).toEqual(anterior.taxas_veiculares);
+  motor.confirmar(5);
+  await expect(pedestres).toBeChecked();
+});
+
+test('pedestres desligados deixam de chegar no motor real e continuam desligados após reset', async ({ page }) => {
+  const estados: any[] = [];
+  page.on('websocket', ws => ws.on('framereceived', ({payload}) => {
+    const e=JSON.parse(String(payload)); if(e.participantes) estados.push(e);
+  }));
+  const ultimo=()=>estados.at(-1);
+  await page.goto('/');
+  await expect(page.getByRole('switch')).toBeEnabled();
+  await page.getByRole('button',{name:'Recomeçar simulação'}).click();
+  await expect(page.locator('#resultado-reset')).toContainText('reiniciada');
+  const velocidade=page.getByRole('slider',{name:'Velocidade da simulação'});
+  await velocidade.fill('24'); await velocidade.dispatchEvent('change');
+  await expect.poll(()=>ultimo()?.velocidade_simulacao).toBe(24);
+  await intensidade(page,100);
+  await page.getByRole('switch').click();
+  await expect.poll(()=>ultimo()?.participantes.some((p:any)=>p.categoria==='pedestre')).toBe(true);
+  await page.getByRole('checkbox',{name:'Incluir pedestres'}).uncheck();
+  await expect.poll(()=>ultimo()?.demanda.configuracao.fator_pedestres).toBe(0);
+  const corte=ultimo().step;
+  expect(ultimo().demanda.configuracao.fator_global).toBe(2);
+  await expect.poll(()=>ultimo()?.step,{timeout:5000}).toBeGreaterThan(corte+80);
+  const dados=await (await page.request.get('http://127.0.0.1:8001/exportar/eventos')).json();
+  expect(dados.eventos.some((e:any)=>e.tipo==='travessia_solicitada')).toBe(true);
+  expect(dados.eventos.filter((e:any)=>e.tipo==='travessia_solicitada' && e.passo>corte)).toHaveLength(0);
+  expect(dados.eventos.some((e:any)=>e.tipo==='insercao_solicitada' && e.passo>corte)).toBe(true);
+  const execucao = ultimo().run_id;
+  await page.getByRole('button',{name:'Recomeçar simulação'}).click();
+  await expect.poll(()=>ultimo()?.run_id).not.toBe(execucao);
+  await expect(page.getByRole('checkbox',{name:'Incluir pedestres'})).not.toBeChecked();
+  // Restabelece o perfil padrão do servidor compartilhado pelos testes.
+  await page.getByRole('checkbox',{name:'Incluir pedestres'}).check();
+  await expect.poll(()=>ultimo()?.demanda.configuracao.fator_pedestres).toBe(2);
+  await page.getByRole('switch').click();
+  await expect.poll(()=>ultimo()?.demanda.configuracao.fator_global).toBe(0);
+  await velocidade.fill('1'); await velocidade.dispatchEvent('change');
+  await expect.poll(()=>ultimo()?.velocidade_simulacao).toBe(1);
 });

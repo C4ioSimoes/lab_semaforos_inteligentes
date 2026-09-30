@@ -110,7 +110,10 @@ export interface ComandoOperacao {
 export interface ComandoReset {
   command_id: string; tipo: 'resetar_simulacao'; parametros: Record<string, never>;
 }
-export type ComandoCliente = ComandoReset | ComandoOperacao | ComandoInsercao | ComandoGerador | ComandoControlador | ComandoNeural;
+export interface ComandoVelocidade {
+  command_id: string; tipo: 'configurar_velocidade'; parametros: { multiplicador: number };
+}
+export type ComandoCliente = ComandoVelocidade | ComandoReset | ComandoOperacao | ComandoInsercao | ComandoGerador | ComandoControlador | ComandoNeural;
 
 export interface RespostaComando {
   readonly tipo: 'confirmacao_comando';
@@ -126,6 +129,7 @@ export interface Instantaneo {
   readonly run_id: string;
   readonly step: number;
   readonly simulation_time: number;
+  readonly velocidade_simulacao?: number;
   readonly fase: string | null;
   readonly estado_transicao: string;
   readonly ocupacoes: ObjetoJson;
@@ -249,6 +253,8 @@ export function lerInstantaneo(mensagem: string): Instantaneo {
   if (!objeto(v) || !texto(v.run_id) || !Number.isSafeInteger(v.step) ||
       typeof v.step !== 'number' || v.step < 0 ||
       typeof v.simulation_time !== 'number' || !Number.isFinite(v.simulation_time) || v.simulation_time < 0 ||
+      (v.velocidade_simulacao !== undefined && (!Number.isSafeInteger(v.velocidade_simulacao) ||
+        typeof v.velocidade_simulacao !== 'number' || v.velocidade_simulacao < 1 || v.velocidade_simulacao > 24)) ||
       !(v.fase === null || texto(v.fase)) || !texto(v.estado_transicao) ||
       !objeto(v.ocupacoes) || !objeto(v.filas) || !Array.isArray(v.solicitacoes) ||
       !v.solicitacoes.every(objeto) || !texto(v.versao_configuracao) ||

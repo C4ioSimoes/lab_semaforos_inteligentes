@@ -10,11 +10,15 @@ export function criarPainelNeural(enviar: (comando: ComandoNeural) => boolean) {
   let controle: Controle | undefined;
   const enviados = new Map<string, number>();
   function disponibilidade() {
-    seletor.disabled = !conectado || !controle?.modelos_neurais || interrompido;
+    const inativo = !!controle?.operacao && controle.operacao.modo !== 'paradigmas';
+    seletor.disabled = !conectado || !controle?.modelos_neurais || interrompido || inativo;
+    el('estado-and').textContent = inativo
+      ? 'Inativo. Ative Regras para usar este exercício.'
+      : 'Usado apenas em Regras. A rede do trânsito tem outro treinamento.';
     for (const opcao of seletor.options) opcao.disabled = !controle?.modelos_neurais?.[opcao.value as ModeloNeural]?.disponivel;
     botao.disabled = seletor.disabled || !controle?.modelos_neurais?.[seletor.value as ModeloNeural]?.disponivel;
   }
-  const editar = () => { alterado = true; revisao++; disponibilidade(); el('resultado-neural').textContent = 'Alteração local. Clique em Aplicar modelo neural.'; };
+  const editar = () => { alterado = true; revisao++; disponibilidade(); el('resultado-neural').textContent = 'Clique em Aplicar ao exercício para salvar.'; };
   const aplicar = (evento: Event) => {
     evento.preventDefault();
     const comando: ComandoNeural = { command_id: crypto.randomUUID(), tipo: 'configurar_modelo_neural', parametros: { modelo: seletor.value as ModeloNeural } };
@@ -32,13 +36,13 @@ export function criarPainelNeural(enviar: (comando: ComandoNeural) => boolean) {
       controle = atual; interrompido = pausado;
       if (runId !== execucao) { alterado = false; enviados.clear(); runId = execucao; }
       if (!alterado && atual?.modelo_neural) seletor.value = atual.modelo_neural;
-      if (atual?.modelo_neural && el('resultado-neural').textContent === 'Aguardando configuração do motor.') {
-        el('resultado-neural').textContent = 'Configuração sincronizada com o motor.';
+      if (atual?.modelo_neural && el('resultado-neural').textContent === 'Aguardando conexão.') {
+        el('resultado-neural').textContent = '';
       }
       el('avaliador-atual').textContent = atual?.modelo_neural ? nomes[atual.modelo_neural] : '—';
       el('disponibilidade-neural').textContent = atual?.modelos_neurais
-        ? 'Pesos verificados pelo motor nas quatro combinações da AND. Apenas modelos válidos podem ser ativados.'
-        : 'Aguardando validação dos pesos pelo motor.';
+        ? 'Modelos conferidos nas quatro combinações da AND.'
+        : 'Verificando modelos…';
       const linhas = Object.entries(atual?.modelos_neurais ?? {}).filter(([nome]) => nome !== 'AND_referencia').map(([nome, modelo]) => {
         const linha = document.createElement('p');
         const motivos: Record<string, string> = { epoca_sem_erros: 'época sem erros', limite_epocas: 'limite de épocas', variacao_sse_abaixo_tolerancia: 'tolerância do SSE atingida' };
@@ -51,7 +55,7 @@ export function criarPainelNeural(enviar: (comando: ComandoNeural) => boolean) {
       el('validacao-neural').replaceChildren(...linhas);
       const decisao = atual?.decisao;
       el('neural-instante').textContent = atual?.operacao && atual.operacao.modo !== 'paradigmas'
-        ? 'Avaliador AND inativo neste modo. Acompanhe a política aplicada na aba correspondente.' : decisao
+        ? 'AND inativa neste modo.' : decisao
         ? `Passo ${decisao.step} · ${nomes[atual?.modelo_neural ?? 'AND_referencia']} · elegibilidade para abertura da fase.`
         : 'Aguardando avaliações do motor.';
       el('diagnostico-neural').replaceChildren(...(decisao?.avaliacoes ?? []).flatMap(a => {

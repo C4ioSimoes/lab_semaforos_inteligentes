@@ -1,6 +1,6 @@
-# Protocolo incremental 1.8 — duas faixas por sentido
+# Protocolo WebSocket 1.8
 
-Extensão dos contratos mínimos da Seção 13 de `requisitos.md`. A configuração
+Referência técnica dos comandos e estados. Para uma leitura inicial, consulte o [mapa do motor](README.md). Os contratos partiram da Seção 13 da [especificação original](../docs/historico/requisitos-2026-09-13.md). A configuração
 emitida é `1.8`. `Instantaneo.participantes` é a lista completa de objetos
 `Participante`; `semaforos` informa verde/amarelo/vermelho para N/S/L/O,
 `semaforos_pedestres` informa verde/vermelho por travessia e `estado_transicao`
@@ -36,7 +36,7 @@ e ocupações de qualquer uma delas bloqueiam movimentos conflitantes.
 sem sorteio. Categorias aceitas: `carro`, `moto`, `onibus`, `ambulancia`; movimento
 em frente e quantidade inteira 1.
 Campos extras, posições enviadas pelo navegador e valores inválidos são rejeitados.
-`confirmacao` e `passo_solicitado` devem ser omitidos ou nulos neste incremento.
+`confirmacao` e `passo_solicitado` devem ser omitidos ou nulos.
 
 Receber o comando não altera participantes. Na fronteira do próximo passo o motor
 cria a solicitação, registra um evento e confirma sua aplicação. Depois admite os
@@ -133,7 +133,7 @@ próprio veículo, inclusive para ônibus. As posições são arredondadas a sei
 Os veículos são atualizados da frente para trás. O seguidor mantém a folga de sua
 categoria entre sua frente e a traseira do líder, considerando ambos os comprimentos.
 Esse limite vale também enquanto os dois estão em movimento. Não há aceleração
-progressiva neste incremento; a velocidade efetiva se ajusta ao espaço disponível.
+progressiva; a velocidade efetiva se ajusta ao espaço disponível.
 
 ## Filas, retenção e espera
 
@@ -288,28 +288,21 @@ apagar filas. `gerador_configurado` registra anterior/nova e passo da aplicaçã
 e observada do gerador, além dos totais separados por fonte. As inserções manuais
 somam solicitações e nunca reduzem a taxa automática.
 
-## Capacidade e medição inicial
+## Capacidade
 
 `Motor(limite_ativos=200, limite_pendentes=2000)` permite configurar os limites
 do ensaio; `LIMITE_TAXA_EFETIVA` em `gerador.py` fixa o teto validado nesta versão.
 Ao esgotar capacidade, o motor registra `limite_atingido`, preserva ativos e
 pendências, contabiliza recusas e interrompe novos passos após terminar o passo
 corrente. O WebSocket permanece enviando o último estado, com o mesmo relógio.
-Novos comandos são rejeitados; retransmissões mantêm sua confirmação original.
-É necessário reiniciar o motor para um novo ensaio. Não há remoção para liberar
-espaço artificialmente.
+Novos comandos, exceto `resetar_simulacao`, são rejeitados; retransmissões
+mantêm sua confirmação original. Use o reset para iniciar um novo ensaio.
+Não há remoção de participantes para liberar espaço artificialmente.
 
-Medição exploratória local em 2026-09-13, Python 3.12.3: todas as 16 fontes
-veiculares e quatro travessias configuradas em 6.000/min, semente 42, dois
-assinantes com cópia e serialização JSON. Em 11 passos até atingir o limite de
-pendências: média 23,98 ms e máximo 38,20 ms por passo; 2.189 solicitações,
-84 ativos, 1.996 pendentes e 109 recusas. O teto é conservador e não garante
-capacidade de rede, FPS, desempenho em outras máquinas ou operação sustentada.
-Essa medição corresponde ao incremento 1.3 com permissões fechadas; não mede
-a capacidade do controle 1.4.
+A [medição exploratória de 13/09/2026](../docs/historico/medicao-capacidade-2026-09-13.md)
+foi preservada como histórico. Ela não mede o desempenho da versão atual.
 
-
-## Matriz de conflitos e baseline 1.4
+## Matriz de conflitos e tempos fixos
 
 Movimentos habilitados: `N-seguir_em_frente`, `S-seguir_em_frente`,
 `L-seguir_em_frente`, `O-seguir_em_frente`, `N-TR`, `S-TR`, `L-TR`, `O-TR`.
@@ -408,15 +401,15 @@ Cada agregado contém:
   incluindo espera atual dos pedestres ainda não autorizados.
 
 Todos os tempos são simulados. A espera externa não é duplicada na espera interna.
-O painel mostra médias de concluídos separadas dos totais acumulados de quem ainda
-está presente, sem esconder demanda não atendida. Por categoria são informados
+O painel principal mostra a média dos concluídos. O diagnóstico e as exportações
+registram também as esperas dos ativos e pendentes. Por categoria são informados
 os cinco grupos; origens aparecem quando há demanda associada. Eventos de conclusão
 registram tempos solicitados/inseridos/autorizados/concluídos e espera interna.
-Exportações JSON/CSV, estatísticas temporais de fila e métricas de emergência de
-RF39 continuam pendentes; este incremento acrescenta os indicadores solicitados.
+Exportações JSON/CSV, estatísticas temporais de fila e métricas de emergência
+estão disponíveis nos endpoints descritos na seção de exportação.
 
 
-## Comando de seleção e parâmetros (1.5)
+## Comando de seleção e parâmetros
 
 ```json
 {
@@ -446,14 +439,13 @@ cumprido. A baseline continua disponível e é o padrão de uma nova execução.
 
 `controle.configuracao_controlador` publica os quatro parâmetros. `controle.politica`
 informa `fixa_referencia` ou `prioridades_demanda_v1`. A variante adaptativa usa
-maior demanda como último critério, conforme o pedido M5, em lugar de começar
-pela antiguidade no item 5 original da Seção 9. Ver [política e desempates](../controladores/README.md).
+maior demanda como critério ordinário e antiguidade como desempate. Ver [política e desempates](../controladores/README.md).
 
 ## Solicitação explícita de emergência
 
 O comando de inserção veicular aceita `solicitacao_prioritaria`, booleano opcional
-(padrão falso). Valor verdadeiro só é válido para ambulância. O formulário exibe
-a opção ao selecionar essa categoria. Ambulâncias automáticas são geradas com
+(padrão falso). Valor verdadeiro só é válido para ambulância. A inserção manual
+é feita pelo WebSocket. Ambulâncias automáticas são geradas com
 pedido explícito verdadeiro, sem consumo adicional de aleatoriedade.
 `Participante.solicitacao_prioritaria` e as pendências em `solicitacoes` preservam
 o valor. O evento `emergencia_solicitada` registra participante, origem e fonte.
@@ -466,7 +458,7 @@ quando habilitada, abaixo de emergência e de espera excessiva.
 ## Decisão, avaliação e validação comum
 
 `controle.decisao` contém a última `Decisao` da Seção 13 (nula antes do primeiro
-passo), com ID, passo, controlador, versão de política, modelo `AND_referencia`,
+passo), com ID, passo, controlador, versão de política, modelo AND selecionado,
 fases candidatas, avaliações, motivos, proposta e resultado da validação.
 Cada avaliação informa fase, demanda, maior espera, critério, chave de ordenação,
 admissibilidade, motivo de bloqueio e elegibilidade AND.
@@ -480,7 +472,7 @@ planejada como destino; a validação RN06 continua impedindo abertura prematura
 As ações são `manter`, `transicionar` e `aguardar`. A última exige fase nula e
 encerra atendimento/amarelo regularmente antes de aguardar novas solicitações
 em vermelho. Renovar a mesma fase por demanda também exige toda a transição.
-Os mínimos/máximos de atendimento permanecem os mesmos 10 s do incremento M4;
+No modo Regras, o atendimento tem duração de 10 s;
 não há preempção que corte esses tempos. A conclusão de movimentos autorizados
 continua protegida, inclusive ao trocar para uma política com emergência ativa.
 
@@ -494,12 +486,12 @@ a avaliação do snapshot mostra a idade atual. Reconfigurar pode alterar a
 preferência, sem remover a demanda.
 
 O frontend sincroniza configuração e diagnóstico, encaminha comandos e mostra
-motivos de rejeição. O transporte 1.6 requer configuração do controlador válida
+motivos de rejeição. O transporte requer configuração do controlador válida
 e `controle.falha_controlador` nulo ou textual.
-Observadores lado a lado de RF27 e persistência automática entre reinicializações
-ficam para os próximos incrementos. A versão 1.7 integra pesos e exporta o histórico.
+Não há comparação simultânea de execuções nem persistência automática entre
+reinicializações. A integração de pesos e a exportação do histórico estão disponíveis.
 
-## Prolog persistente e falhas (1.6)
+## Prolog persistente e falhas
 
 `configurar_controlador` aceita `controlador: "logico"`, com os mesmos três
 parâmetros de prioridade e a mesma política `prioridades_demanda_v1`. Não existe
@@ -532,7 +524,7 @@ estrutura correta, continua sendo rejeição de integridade RN06 e aparece no
 diagnóstico normal de decisão. Não se confunde com falha de comunicação.
 
 
-## Avaliador neural (1.7)
+## Avaliador da AND
 
 Comando independente do paradigma:
 
@@ -584,3 +576,26 @@ Veja `docs/tres_disciplinas.md` para as políticas, limitações e ensaios repro
 `{"command_id":"reset-1","tipo":"resetar_simulacao","parametros":{}}` agenda uma nova execução no mesmo motor e mantém os WebSockets conectados. A confirmação aplicada usa passo zero e é seguida de um instantâneo com novo `run_id`, tempo zero, sinais vermelhos e nenhuma demanda acumulada. Os passos seguintes retomam a geração configurada.
 
 O reset limpa participantes, filas, métricas, históricos e interrupções. Preserva configuração semafórica, limites, controlador, modo de operação, modelos e configuração de geração. Reinicia as fontes aleatórias a partir da mesma semente. Funciona mesmo quando a execução foi interrompida. Comandos ainda pendentes depois dele são cancelados; repetições de seu `command_id` devolvem a confirmação anterior sem reiniciar novamente. Histórico anterior deixa de fazer parte das exportações: exporte antes caso precise conservá-lo.
+
+## Velocidade da simulação (extensão compatível com 1.8)
+
+`{"command_id":"velocidade-1","tipo":"configurar_velocidade","parametros":{"multiplicador":24}}`
+seleciona um inteiro de 1 a 24. Confirmação, validação e deduplicação seguem os
+outros comandos. `Instantaneo.velocidade_simulacao` informa o valor aplicado;
+`configuracao_atual.velocidade_simulacao` e eventos `velocidade_configurada`
+preservam essa informação na exportação JSON. O valor inicial é 1 e o reset o mantém.
+
+O multiplicador altera somente o intervalo real entre passos. Cada passo continua
+representando 0,1 s simulados: geração, movimento, decisões, filas e métricas são
+calculados em todos os passos. A amostragem exportada continua em 1 s simulado.
+A mesma semente e os mesmos comandos nos mesmos passos produzem os mesmos
+resultados, independentemente do ritmo. Comandos manuais enviados em momentos
+reais diferentes podem, naturalmente, cair em passos simulados diferentes.
+
+Em 1× o WebSocket publica cada passo. Acima disso, publica até 20 estados por
+segundo real, além das atualizações imediatas de comandos, resets e interrupções.
+Os clientes podem receber saltos no número do passo; isso não significa que os
+cálculos intermediários foram descartados. Todos compartilham a mesma velocidade.
+Se o computador não alcançar o ritmo solicitado, o relógio real fica mais lento,
+sem aumentar o passo, pular cálculos ou acumular uma fila de passos atrasados.
+Acelerar exige mais processamento por segundo real; não garante 24× sob toda carga.

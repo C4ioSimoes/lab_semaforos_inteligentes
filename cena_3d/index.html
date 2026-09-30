@@ -3,160 +3,169 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#111719" />
-  <title>Observatório · Trânsito 3D</title>
+  <meta name="theme-color" content="#bcbcbc" />
+  <title>Simulador de trânsito 3D</title>
 </head>
 <body>
   <header class="cabecalho">
     <div class="marca" aria-hidden="true"><i></i><i></i><i></i></div>
-    <div><p class="sobretitulo">LABORATÓRIO DE MOBILIDADE</p><h1>Observatório do cruzamento</h1></div>
-    <span class="etapa">SIMULAÇÃO / 3D</span>
+    <div><p class="sobretitulo">SIMULADOR DE TRÂNSITO</p><h1>Laboratório 3D</h1></div>
+    <nav class="acoes-visualizacao" aria-label="Visualização">
+      <button id="alternar-dados" type="button" aria-expanded="true" aria-controls="painel-dados">Dados</button>
+      <button id="alternar-controles" type="button" aria-expanded="true" aria-controls="painel-geracao">Trânsito</button>
+      <button id="tela-cheia" type="button" aria-label="Entrar em tela cheia" title="Entrar em tela cheia"><span aria-hidden="true">⛶</span></button>
+    </nav>
+    <p id="resultado-visualizacao" class="sr-only" role="status"></p>
   </header>
   <main>
-    <aside class="painel-dados" aria-label="Monitoramento da simulação">
-      <p class="sobretitulo">EM TEMPO REAL</p>
-      <h2>Visão geral</h2>
+    <aside id="painel-dados" class="painel-dados" aria-label="Controles e resultados">
+      <h2>Sua simulação</h2>
       <div id="status" class="status" data-estado="conectando" role="status">Conectando…</div>
-      <p id="mensagem-conexao" class="ajuda">Aguardando o motor.</p>
+      <p id="mensagem-conexao" class="ajuda">Aguardando conexão.</p>
+      <p id="modo-ativo" class="modo-ativo" role="status">Controle: aguardando conexão.</p>
+      <details class="avancado" id="configuracoes-experimento">
+        <summary>Escolher controle dos sinais</summary>
+        <div class="conteudo-avancado">
+          <p class="nota">Escolha uma aba e clique em ativar.</p>
+          <div id="separadores-controle" class="separadores" role="tablist" aria-label="Controle dos sinais">
+            <button id="aba-paradigmas" type="button" role="tab" aria-selected="true" aria-controls="painel-paradigmas">Regras</button>
+            <button id="aba-neurais" type="button" role="tab" aria-selected="false" aria-controls="painel-neurais" tabindex="-1">Rede neural</button>
+            <button id="aba-urbano" type="button" role="tab" aria-selected="false" aria-controls="painel-urbano" tabindex="-1">Automático</button>
+          </div>
+          <div id="painel-paradigmas" role="tabpanel" aria-labelledby="aba-paradigmas" tabindex="0">
+            <section class="painel-controlador" aria-label="Controle por regras">
+              <p class="descricao-modo">Use tempos fixos ou regras de prioridade.</p>
+              <form id="form-controlador">
+                <label for="controlador">Tipo de regra</label>
+                <select id="controlador" aria-describedby="nota-politica"><option value="baseline">Tempos fixos</option><option value="imperativo">Prioridades · Imperativo</option><option value="orientado_objetos">Prioridades · Orientado a objetos</option><option value="funcional">Prioridades · Funcional</option><option value="logico">Prioridades · Lógico (Prolog)</option></select>
+                <p id="nota-politica" class="nota">Os sinais seguem uma sequência fixa.</p>
+                <fieldset id="parametros-prioridade"><legend>Quem passa primeiro?</legend>
+                  <label for="limiar-espera">Dar prioridade após (segundos)</label>
+                  <input id="limiar-espera" type="number" min="0.1" max="3600" step="0.1" value="30" aria-describedby="ajuda-espera" required>
+                  <p id="ajuda-espera" class="nota">Tempo de espera para ganhar prioridade; não é um limite máximo.</p>
+                  <label class="opcao"><input id="prioridade-ambulancia" type="checkbox" checked>Priorizar ambulâncias</label>
+                  <label class="opcao"><input id="prioridade-onibus" type="checkbox">Priorizar ônibus</label>
+                </fieldset>
+                <button id="aplicar-controlador" class="primario" type="submit" disabled>Ativar regras</button>
+              </form>
+              <p id="resultado-controlador" class="ajuda" role="status">Aguardando conexão.</p>
+              <details id="estudo-and" class="detalhes">
+                <summary>Para estudar: lógica AND</summary>
+                <p class="nota">Libera a fase quando há um pedido e a passagem é permitida.</p>
+                <p id="estado-and" class="nota"></p>
+                <form id="form-neural">
+                  <label for="modelo-neural">Modelo do exercício AND</label>
+                  <select id="modelo-neural" disabled aria-describedby="estado-and disponibilidade-neural">
+                    <option value="AND_referencia">AND de referência</option><option value="perceptron" disabled>Perceptron</option><option value="adaline" disabled>Adaline</option>
+                  </select>
+                  <button id="aplicar-neural" type="submit" disabled>Aplicar ao exercício</button>
+                </form>
+                <p id="resultado-neural" class="ajuda" role="status">Aguardando conexão.</p>
+                <dl class="dados"><div><dt>Modelo salvo</dt><dd id="avaliador-atual">—</dd></div></dl>
+                <p id="disponibilidade-neural" class="nota">Verificando modelos…</p>
+                <details class="detalhes"><summary>Ver cálculos da AND</summary>
+                  <div id="validacao-neural" class="ajuda"></div>
+                  <p id="neural-instante" class="ajuda">Aguardando dados.</p>
+                  <div id="diagnostico-neural"></div>
+                  <p class="nota">x1: pedido · x2: passagem permitida · +1: pode abrir · −1: aguardar.</p>
+                </details>
+              </details>
+            </section>
+          </div>
+          <div id="painel-neurais" role="tabpanel" aria-labelledby="aba-neurais" tabindex="0" hidden>
+            <section class="painel-controlador" aria-label="Controle por rede neural">
+              <p class="descricao-modo">A rede compara filas e espera para escolher quem passa.</p>
+              <label for="rede-transito">Rede para controlar o trânsito</label>
+              <select id="rede-transito"><option value="perceptron">Perceptron</option><option value="adaline">Adaline</option></select>
+              <button id="ativar-neural-transito" class="primario" type="button" disabled>Ativar rede neural</button>
+              <p id="resultado-neural-transito" class="ajuda" role="status"></p>
+              <p class="nota">Ambulâncias têm prioridade. Travessias em andamento são respeitadas.</p>
+              <details id="detalhes-rede" class="detalhes"><summary>Como a rede decide</summary>
+                <div id="treinamento-transito" class="nota"></div>
+                <p class="nota">Compara fila, espera, aproximações e custo da troca de sinal.</p>
+                <div id="calculo-transito" class="calculo-neural-aplicado"></div>
+              </details>
+            </section>
+          </div>
+          <div id="painel-urbano" role="tabpanel" aria-labelledby="aba-urbano" tabindex="0" hidden>
+            <section class="painel-controlador" aria-label="Controle automático">
+              <p class="descricao-modo">Ajusta o tempo de verde conforme as filas e a espera.</p>
+              <button id="ativar-urbano" class="primario" type="button" disabled>Ativar automático</button>
+              <p id="resultado-urbano" class="ajuda" role="status"></p>
+              <p class="nota">Prioriza ambulâncias e quem espera há mais tempo. Usa regras, sem rede neural.</p>
+              <details id="ensaios" class="detalhes"><summary>Comparar resultados de testes</summary>
+                <p class="nota">Testes anteriores com o mesmo trânsito. Não são os resultados desta sessão.</p>
+                <button id="ver-comparacao" type="button">Carregar comparação</button>
+                <div id="comparacao-transito" aria-live="polite"></div>
+              </details>
+            </section>
+          </div>
+        </div>
+      </details>
       <div class="tempo"><span>Tempo simulado</span><div><output id="tempo">—</output><span> s</span></div></div>
-      <button id="resetar-simulacao" type="button" disabled aria-describedby="ajuda-reset">Resetar simulação</button>
-      <p id="ajuda-reset" class="nota">Zera tempo, participantes, filas e métricas. Mantém o modo e a geração selecionados.</p>
+      <dl class="dados">
+        <div><dt>Vez de passar</dt><dd id="fase">—</dd></div>
+        <div><dt>Veículos</dt><dd id="carros-ativos">—</dd></div>
+        <div><dt>Pedestres</dt><dd id="pedestres-ativos">—</dd></div>
+        <div><dt>Esperando para entrar</dt><dd id="entrada-pendente">—</dd></div>
+        <div><dt>Passagens por minuto</dt><dd id="vazao">—</dd></div>
+        <div><dt>Espera média</dt><dd id="espera-concluidos">—</dd></div>
+      </dl>
+      <p class="nota">Passagens e espera consideram quem já terminou o percurso.</p>
+      <button id="resetar-simulacao" type="button" disabled aria-describedby="ajuda-reset">Recomeçar simulação</button>
+      <p id="ajuda-reset" class="nota">Zera a cena e os resultados. Mantém suas configurações.</p>
       <p id="resultado-reset" class="ajuda" role="status"></p>
-      <dl class="dados">
-        <div><dt>Fase ativa</dt><dd id="fase">—</dd></div>
-        <div><dt>Veículos na cena</dt><dd id="carros-ativos">—</dd></div>
-        <div><dt>Pedestres na cena</dt><dd id="pedestres-ativos">—</dd></div>
-        <div><dt>Aguardando entrada</dt><dd id="entrada-pendente">—</dd></div>
-      </dl>
-      <p class="sobretitulo separacao">DESEMPENHO</p>
-      <dl class="dados">
-        <div><dt>Vazão / min</dt><dd id="vazao">—</dd></div>
-        <div><dt>Espera média¹</dt><dd id="espera-concluidos">—</dd></div>
-      </dl>
-      <p class="nota">¹ Percursos concluídos.</p>
       <p id="falha-controlador" class="alerta" role="alert" hidden></p>
       <p id="limite-demanda" class="alerta" role="alert" hidden></p>
-      <details class="avancado" id="configuracoes-experimento">
-        <summary>Configurações do experimento</summary>
-        <div class="conteudo-avancado">
-        <p id="modo-ativo" class="modo-ativo" role="status">Modo ativo: aguardando motor.</p>
-        <div id="separadores-controle" class="separadores" role="tablist" aria-label="Modo de controle">
-          <button id="aba-paradigmas" type="button" role="tab" aria-selected="true" aria-controls="painel-paradigmas">Paradigmas</button>
-          <button id="aba-neurais" type="button" role="tab" aria-selected="false" aria-controls="painel-neurais" tabindex="-1">Redes neurais</button>
-          <button id="aba-urbano" type="button" role="tab" aria-selected="false" aria-controls="painel-urbano" tabindex="-1">Semáforo urbano</button>
+      <details id="salvar-resultados" class="detalhes"><summary>Salvar resultados</summary>
+        <p class="nota">Baixe antes de recomeçar para guardar esta sessão.</p>
+        <div class="downloads">
+          <button id="exportar-metricas" type="button" disabled>Baixar planilha (CSV)</button>
+          <button id="exportar-eventos" type="button" disabled>Baixar histórico (JSON)</button>
         </div>
-        <div id="painel-paradigmas" role="tabpanel" aria-labelledby="aba-paradigmas" tabindex="0">
-        <section class="painel-controlador" aria-label="Controlador e prioridades">
-          <p class="sobretitulo">CONTROLE</p><h2>Paradigmas de programação</h2>
-          <form id="form-controlador">
-            <label for="controlador">Controlador</label>
-            <select id="controlador"><option value="baseline">Baseline (fixa)</option><option value="imperativo">Imperativo</option><option value="orientado_objetos">Orientado a Objetos</option><option value="funcional">Funcional</option><option value="logico">Lógico (Prolog)</option></select>
-            <fieldset id="parametros-prioridade"><legend>Prioridade de atendimento</legend>
-              <label for="limiar-espera">Limiar de espera (s simulados)</label><input id="limiar-espera" type="number" min="0.1" max="3600" step="0.1" value="30" required>
-              <label class="opcao"><input id="prioridade-ambulancia" type="checkbox" checked>Atender emergências</label>
-              <label class="opcao"><input id="prioridade-onibus" type="checkbox">Priorizar ônibus</label>
-            </fieldset>
-            <p id="nota-politica" class="ajuda">Baseline usa sequência fixa. Os parâmetros adaptativos são preservados para os demais controladores.</p>
-            <button id="aplicar-controlador" type="submit" disabled>Aplicar controlador</button>
-          </form>
-          <p id="resultado-controlador" class="ajuda" role="status">Aguardando configuração do motor.</p>
-          <p class="nota">Escolha o avaliador na aba Redes neurais. Intensidade de chegadas é ajustada em Geração Aleatória.</p>
-        </section>
-        </div>
-        <div id="painel-neurais" role="tabpanel" aria-labelledby="aba-neurais" tabindex="0" hidden>
-          <section class="painel-controlador" aria-label="Redes neurais">
-            <p class="sobretitulo">AVALIAÇÃO</p><h2>Redes neurais</h2>
-            <p>O experimento AND abaixo atende ao enunciado. A aplicação no trânsito usa outro treinamento para comparar filas, espera e veículos em aproximação.</p>
-            <label for="rede-transito">Rede aplicada ao trânsito</label>
-            <select id="rede-transito"><option value="perceptron">Perceptron</option><option value="adaline">Adaline</option></select>
-            <button id="ativar-neural-transito" type="button" disabled>Ativar rede no trânsito</button>
-            <p class="nota">As redes escolhem entre fases e podem prolongar o verde. Emergências, espera prolongada e proteção das travessias são tratadas explicitamente.</p>
-            <p id="resultado-neural-transito" role="status"></p>
-            <div id="treinamento-transito" class="nota"></div>
-            <p class="nota">Entradas: bias, diferença de fila / 20, diferença de espera / 60, diferença de aproximações / 20 e indicador de troca.</p>
-            <div id="calculo-transito" class="calculo-neural-aplicado"></div>
-            <h3>Experimento obrigatório: porta AND</h3>
-            <p>Este avaliador atua no modo Paradigmas. Alterá-lo não ativa a aplicação neural no trânsito.</p>
-            <p id="disponibilidade-neural" class="ajuda">Aguardando validação dos pesos pelo motor.</p>
-            <form id="form-neural">
-              <label for="modelo-neural">Modelo neural</label>
-              <select id="modelo-neural" disabled aria-describedby="disponibilidade-neural">
-                <option value="AND_referencia">AND de referência</option>
-                <option value="perceptron" disabled>Perceptron</option>
-                <option value="adaline" disabled>Adaline</option>
-              </select>
-              <button id="aplicar-neural" type="submit" disabled>Aplicar modelo neural</button>
-            </form>
-            <p id="resultado-neural" class="ajuda" role="status">Aguardando configuração do motor.</p>
-            <dl class="dados">
-              <div><dt>Avaliador atual</dt><dd id="avaliador-atual">—</dd></div>
-            </dl>
-            <div id="validacao-neural" class="ajuda"></div>
-            <p class="nota">x1: solicitação de atendimento; x2: admissibilidade temporal e de conflitos. Na baseline, a solicitação vem da sequência fixa; nos adaptativos, da demanda.</p>
-          </section>
-        <section class="diagnostico-demanda" aria-label="Diagnóstico Neural">
-          <h2>Diagnóstico Neural</h2>
-          <p id="neural-instante" class="ajuda">Aguardando avaliações do motor.</p>
-          <div id="diagnostico-neural"></div>
-          <p class="nota">Saída +1: elegível; −1: não elegível. A soma ponderada é um valor linear. As entradas representam o instante da decisão, antes da transição.</p>
-        </section>
-        </div>
-
-        <div id="painel-urbano" role="tabpanel" aria-labelledby="aba-urbano" tabindex="0" hidden>
-          <section class="painel-controlador" aria-label="Controle urbano">
-            <p class="sobretitulo">FILAS E EMERGÊNCIAS</p><h2>Semáforo urbano</h2>
-            <p>O verde acompanha a demanda: mantém o fluxo enquanto for útil e atende a outra via quando o benefício da troca aumenta.</p>
-            <ul><li>Considera filas próximas, aproximações e tempo de espera.</li><li>Prioriza emergências e evita que uma via com poucos veículos fique esquecida.</li><li>Preserva amarelo, liberação e travessias iniciadas.</li></ul>
-            <button id="ativar-urbano" type="button" disabled>Ativar semáforo urbano</button>
-            <p id="resultado-urbano" role="status"></p>
-            <p class="nota">Política independente dos paradigmas e dos modelos neurais. Os parâmetros são próprios deste simulador; desempenho depende da demanda.</p>
-            <h3>Resultados medidos</h3>
-            <p>Comparação com as mesmas sementes e chegadas, em execuções separadas. Estes resultados não são as métricas da sessão atual.</p>
-            <button id="ver-comparacao" type="button">Ver comparação medida</button>
-            <div id="comparacao-transito" aria-live="polite"></div>
-          </section>
-        </div>
-          <p id="estado-controle" class="ajuda"></p>
-          <p id="validacao-controle" class="ajuda"></p>
-          <p id="decisao-controlador" class="ajuda"></p>
-          <details><summary>Avaliação das fases</summary><div id="avaliacoes-fases" class="ajuda"></div></details>
-
-        <section class="diagnostico-demanda" aria-label="Exportação de experimentos">
-          <h2>Exportar experimento</h2>
-          <button id="exportar-eventos" type="button" disabled>Exportar Eventos (JSON)</button>
-          <button id="exportar-metricas" type="button" disabled>Exportar Métricas (CSV)</button>
-          <p id="resultado-exportacao" class="ajuda" role="status">Aguardando conexão.</p>
-          <p class="nota">Exporta desde o início até o passo do download. A simulação continua. O JSON inclui configuração e histórico de fases; o CSV contém vazão e esperas, com ativos e pendentes separados.</p>
-        </section>
-
-          <dl class="dados"><div><dt>Passo oficial</dt><dd id="passo">—</dd></div></dl>
-          <details class="execucao"><summary>Conexão e execução</summary><code id="execucao">—</code><code id="endpoint"></code></details>
-        </div>
+        <p id="resultado-exportacao" class="ajuda" role="status">Aguardando conexão.</p>
+      </details>
+      <details id="detalhes-simulacao" class="detalhes"><summary>Detalhes técnicos</summary>
+        <p id="estado-controle" class="ajuda"></p><p id="validacao-controle" class="ajuda"></p><p id="decisao-controlador" class="ajuda"></p>
+        <details><summary>Decisões por direção</summary><div id="avaliacoes-fases" class="ajuda"></div></details>
+        <dl class="dados"><div><dt>Passo da simulação</dt><dd id="passo">—</dd></div></dl>
+        <details class="execucao"><summary>Conexão</summary><code id="execucao">—</code><code id="endpoint"></code></details>
       </details>
     </aside>
     <section class="visualizacao" aria-label="Visualização do cruzamento">
-      <div class="barra-cena"><div><span class="indicador"></span>Cruzamento central <small>Vista orbital</small></div><span class="eixos">N / S / L / O</span></div>
-      <section class="painel-geracao" aria-label="Geração aleatória">
+      <div class="barra-cena"><div><span class="indicador"></span>Cruzamento 3D</div><span class="eixos">N / S / L / O</span></div>
+      <section id="painel-geracao" class="painel-geracao" aria-label="Entrada de veículos e pedestres">
         <div class="controle-geracao">
-          <div><h2 id="titulo-geracao">Geração aleatória</h2><span class="ajuda">Veículos e pedestres</span></div>
-          <button id="alternar-geracao" class="toggle" type="button" role="switch" aria-checked="false" aria-labelledby="titulo-geracao" disabled><span class="trilho" aria-hidden="true"></span><span id="estado-geracao">Desligada</span></button>
+          <div><h2 id="titulo-geracao">Entrada de trânsito</h2></div>
+          <button id="alternar-geracao" class="toggle" type="button" role="switch" aria-checked="false" aria-labelledby="titulo-geracao" aria-describedby="ajuda-geracao" disabled><span class="trilho" aria-hidden="true"></span><span id="estado-geracao">Desligada</span></button>
         </div>
+        <label class="opcao opcao-pedestres" for="permitir-pedestres">
+          <span>Incluir pedestres</span><input id="permitir-pedestres" type="checkbox" checked disabled aria-describedby="ajuda-geracao">
+        </label>
         <div class="controle-intensidade">
-          <div class="rotulo-intensidade"><label for="intensidade-transito">Intensidade do trânsito</label><output id="valor-intensidade" for="intensidade-transito">Médio</output></div>
-          <input id="intensidade-transito" type="range" min="0" max="100" step="1" value="50" aria-valuetext="Médio" aria-describedby="resultado-geracao" disabled>
-          <div class="escala" aria-hidden="true"><span>Baixo</span><span>Médio</span><span>Alto</span></div>
+          <div class="rotulo-intensidade"><label for="intensidade-transito">Quantidade de trânsito</label><output id="valor-intensidade" for="intensidade-transito">Médio</output></div>
+          <input id="intensidade-transito" type="range" min="0" max="100" step="1" value="50" aria-valuetext="Médio" aria-describedby="ajuda-geracao resultado-geracao" disabled>
+          <div class="escala" aria-hidden="true"><span>Pouco</span><span>Médio</span><span>Muito</span></div>
+          <div class="controle-velocidade">
+            <div class="rotulo-intensidade"><label for="velocidade-simulacao">Velocidade da simulação</label><output id="valor-velocidade" for="velocidade-simulacao">1×</output></div>
+            <input id="velocidade-simulacao" type="range" min="1" max="24" step="1" value="1" aria-valuetext="1 vez a velocidade normal" aria-describedby="ajuda-velocidade resultado-velocidade" disabled>
+            <div class="escala" aria-hidden="true"><span>1×</span><span>12×</span><span>24×</span></div>
+            <p id="ajuda-velocidade" class="nota">1× = tempo normal. O ritmo depende do computador.</p>
+            <p id="resultado-velocidade" class="ajuda" role="status">Aguardando conexão.</p>
+          </div>
         </div>
-        <p id="resultado-geracao" class="ajuda" role="status">Aguardando configuração do motor.</p>
+        <p id="ajuda-geracao" class="nota">Desligar impede novas chegadas. Quem já entrou termina o percurso.</p>
+        <p id="resultado-geracao" class="ajuda" role="status">Aguardando conexão.</p>
       </section>
-      <div id="cena" aria-label="Cena 3D com quatro aproximações"><p id="erro-cena" role="alert" hidden></p></div>
+      <div id="cena" aria-label="Cena 3D do cruzamento"><p id="erro-cena" role="alert" hidden></p></div>
       <div class="barra-camera">
-        <p><strong>Explore o cruzamento</strong><span>Arraste para girar · Role para ampliar</span></p>
-        <div><button id="vista-superior" type="button">Vista superior</button><button id="restaurar-vista" type="button">Restaurar vista</button></div>
+        <p>Arraste para girar · Role para zoom</p>
+        <div><button id="vista-superior" type="button">Ver de cima</button><button id="restaurar-vista" type="button">Voltar à vista inicial</button></div>
       </div>
-      <div id="situacao-cruzamento" class="sr-only">Aguardando estado dos semáforos.</div>
+      <div id="situacao-cruzamento" class="sr-only">Aguardando os sinais.</div>
     </section>
   </main>
-  <footer><span>Laboratório de Semáforos Inteligentes</span><span>Mobilidade em perspectiva</span></footer>
+  <footer><span>Laboratório de Semáforos Inteligentes</span><span>Explore · Compare · Aprenda</span></footer>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

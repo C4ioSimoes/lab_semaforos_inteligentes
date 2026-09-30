@@ -1,6 +1,8 @@
-# Três entregas, três formas de usar o laboratório
+# Modos de controle e relação com as disciplinas
 
-A interface separa **Paradigmas**, **Redes neurais** e **Semáforo urbano**. Abrir uma aba não muda a simulação. O aviso **Modo ativo** mostra a política que está comandando os sinais; use o botão de ativação da respectiva aba. Trocar de modo preserva veículos, relógio e demanda. Para uma comparação científica, use execuções novas, pois as métricas da sessão acumulam desde o início.
+Para a exposição de Paradigmas e Redes Neurais, use os [roteiros de apresentação](apresentacao/README.md). Esta página detalha a relação entre os modos. Os valores estão em [Parâmetros atuais](parametros.md).
+
+A interface usa os nomes **Regras** (paradigmas), **Rede neural** e **Automático** (semáforo urbano). Abrir uma aba não muda a simulação. O aviso **Controle** mostra a política que está comandando os sinais; use o botão de ativação da respectiva aba. Trocar de modo preserva veículos, relógio e demanda. Para uma comparação científica, use execuções novas, pois as métricas da sessão acumulam desde o início.
 
 ## 1. Paradigmas da programação
 
@@ -42,7 +44,7 @@ A AND aprendida não pode superar a AND direta nas mesmas quatro entradas. A efi
 
 ### Extensão aplicada ao trânsito
 
-Na aba Redes neurais, escolha **Rede aplicada ao trânsito** e clique em **Ativar rede no trânsito**. Isso ativa uma política própria, independente do controlador selecionado em Paradigmas. A seleção inferior **Modelo neural** continua sendo o avaliador AND acadêmico e não ativa a extensão.
+Na aba **Rede neural**, escolha **Rede para controlar o trânsito** e clique em **Ativar rede neural**. Isso ativa uma política própria. O avaliador AND acadêmico fica em **Regras → Para estudar: lógica AND** e só pode ser alterado com o modo Regras ativo. Os cálculos e dados de treinamento ficam em seções opcionais.
 
 Cada rede faz comparações entre duas fases usando:
 
@@ -74,7 +76,7 @@ Para a apresentação: mostre primeiro a AND e as regras de atualização; depoi
 
 ## 3. Semáforo urbano
 
-Clique em **Semáforo urbano → Ativar semáforo urbano**. Esse modo não consulta os quatro controladores nem os pesos neurais. Sua política compara:
+Clique em **Automático → Ativar automático**. Esse modo não consulta os quatro controladores nem os pesos neurais. Sua política compara:
 
 ```
 pontuação = participantes próximos + 0,2·aproximações
@@ -98,4 +100,4 @@ São cinco políticas, três cenários e três sementes: 45 execuções novas. O
 
 O relatório mede fila média, concluídos, espera dos concluídos, espera acumulada de todos os solicitados e emergências atendidas/pendentes. A espera acumulada inclui quem ainda está no sistema, mas não sua espera futura. Uma política pode favorecer emergências e piorar a média geral. Compare também remanescentes e vazão: não escolha um vencedor por uma única métrica.
 
-`resultados.json` preserva os números por execução. `relatorio.md` apresenta as médias e as variações em relação ao imperativo. O relatório é copiado para `cena_3d/public/comparacao-transito.json` para consulta na aba urbana. Alterar código de decisão, treinamento, geometria ou parâmetros exige executar novamente os ensaios. A tabela não é calculada a partir da sessão visual atual.
+Os ensaios atuais foram recalculados em 30/09/2026, com pedestres a 1,7 unidade/s; a comparação anterior foi guardada no [histórico](historico/README.md). `resultados.json` preserva os números por execução. `relatorio.md` apresenta as médias e as variações em relação ao imperativo. O relatório é copiado para `cena_3d/public/comparacao-transito.json` para consulta na aba urbana. Alterar código de decisão, treinamento, geometria ou parâmetros exige executar novamente os ensaios. A tabela não é calculada a partir da sessão visual atual.

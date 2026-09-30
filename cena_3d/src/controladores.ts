@@ -1,7 +1,7 @@
 import type { ComandoControlador, ConfiguracaoControlador, Controle, NomeControlador } from './contratos';
 
 export const nomesControladores: Record<NomeControlador, string> = {
-  baseline: 'Baseline (fixa)', imperativo: 'Imperativo', orientado_objetos: 'Orientado a Objetos', funcional: 'Funcional',
+  baseline: 'Tempos fixos', imperativo: 'Imperativo', orientado_objetos: 'Orientado a objetos', funcional: 'Funcional',
   logico: 'Lógico (Prolog)',
 };
 const el = (id: string) => document.getElementById(id)!;
@@ -21,11 +21,12 @@ export function criarPainelControlador(enviar: (comando: ComandoControlador) => 
     (el('aplicar-controlador') as HTMLButtonElement).disabled = !conectado || !disponivel || interrompido;
     const baseline = ler().controlador === 'baseline';
     (el('parametros-prioridade') as HTMLFieldSetElement).disabled = baseline;
+    el('parametros-prioridade').hidden = baseline;
     el('nota-politica').textContent = baseline
-      ? 'Baseline usa sequência fixa. Os parâmetros adaptativos são preservados para os demais controladores.'
-      : 'Emergência → espera acima do limiar → ônibus → maior demanda. Transições e movimentos iniciados permanecem protegidos.';
+      ? 'Os sinais seguem uma sequência fixa.'
+      : 'Mesmas prioridades, quatro formas de programar (paradigmas).';
   }
-  const editar = () => { alterado = true; revisao++; atualizarDisponibilidade(); el('resultado-controlador').textContent = 'Alterações locais. Clique em Aplicar controlador.'; };
+  const editar = () => { alterado = true; revisao++; atualizarDisponibilidade(); el('resultado-controlador').textContent = 'Clique em Ativar regras para aplicar.'; };
   const aplicar = (evento: Event) => {
     evento.preventDefault();
     const comando: ComandoControlador = { command_id: crypto.randomUUID(), tipo: 'configurar_controlador', parametros: ler() };
@@ -49,7 +50,7 @@ export function criarPainelControlador(enviar: (comando: ComandoControlador) => 
         input('limiar-espera').value = String(config.limiar_espera);
         input('prioridade-ambulancia').checked = config.prioridade_ambulancia;
         input('prioridade-onibus').checked = config.prioridade_onibus;
-        if (el('resultado-controlador').textContent === 'Aguardando configuração do motor.') el('resultado-controlador').textContent = 'Configuração sincronizada com o motor.';
+        if (el('resultado-controlador').textContent === 'Aguardando conexão.') el('resultado-controlador').textContent = '';
       }
       atualizarDisponibilidade();
     },

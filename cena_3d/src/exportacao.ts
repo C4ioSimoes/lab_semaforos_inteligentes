@@ -8,7 +8,7 @@ export function criarExportacoes(websocket: string) {
     const botao = document.getElementById(`exportar-${tipo}`) as HTMLButtonElement;
     const clicar = async () => {
       botao.disabled = true; emCurso.add(botao);
-      status.textContent = 'Preparando download do experimento…';
+      status.textContent = 'Preparando arquivo…';
       try {
         const url = new URL(websocket);
         url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
@@ -22,7 +22,7 @@ export function criarExportacoes(websocket: string) {
         link.download = resposta.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] ?? `${tipo}.${extensao}`;
         document.body.append(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(destino), 1000);
-        status.textContent = `${tipo === 'eventos' ? 'Eventos exportados' : 'Métricas exportadas'}. A simulação continua em execução.`;
+        status.textContent = `${tipo === 'eventos' ? 'Eventos exportados' : 'Métricas exportadas'}.`;
       } catch (erro) {
         status.textContent = `Não foi possível exportar: ${erro instanceof Error ? erro.message : 'falha na conexão'}. Tente novamente.`;
       } finally { emCurso.delete(botao); botao.disabled = !conectado; }
@@ -33,7 +33,7 @@ export function criarExportacoes(websocket: string) {
   return {
     definirConexao(valor: boolean) {
       conectado = valor;
-      if (valor && status.textContent === 'Aguardando conexão.') status.textContent = 'Escolha o formato para baixar os resultados.';
+      if (valor && status.textContent === 'Aguardando conexão.') status.textContent = 'A simulação continua durante o download.';
       for (const { botao } of registros) botao.disabled = !valor || emCurso.has(botao);
     },
     descartar() { for (const { botao, clicar } of registros) botao.removeEventListener('click', clicar); },

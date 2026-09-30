@@ -6,6 +6,21 @@ gráficos, tabela, comparação em Markdown de 13 linhas, exportação JSON e um
 As únicas bibliotecas importadas pelo experimento são **NumPy e Matplotlib**,
 além de módulos da biblioteca padrão do Python. Nenhum modelo pronto é utilizado.
 
+Para apresentar, siga o [roteiro de Redes Neurais](../docs/apresentacao/redes_neurais.md). O [índice das figuras](artefatos/README.md) indica o que mostrar em cada etapa.
+
+## Mapa da pasta
+
+| Arquivo | Uso |
+| --- | --- |
+| [and_perceptron_adaline.ipynb](and_perceptron_adaline.ipynb) | Entrega principal: teoria, treinamento, comparação e interação |
+| [artefatos/](artefatos/README.md) | Figuras e texto da comparação já produzidos |
+| [executar_notebook.py](executar_notebook.py) | Executar o notebook automaticamente, sem a célula de teclado |
+| [verificar_experimento.py](verificar_experimento.py) | Validar treinamento, pesos, gráficos e entradas interativas |
+| `requirements.in` / `requirements.txt` | Bibliotecas numéricas e gráficas; dependências diretas / versões fixadas |
+| `requirements-jupyter.in` / `requirements-jupyter.txt` | Ferramentas adicionais para abrir e executar o notebook |
+
+O arquivo de pesos utilizado pelo motor fica na raiz: [pesos_neurais.json](../pesos_neurais.json).
+
 ## Abrir e executar
 
 Ambiente verificado: Python **3.12.3**, NumPy **2.2.6**, Matplotlib **3.10.3**.
@@ -95,7 +110,7 @@ notebook for copiado para outro diretório, usa o diretório atual. A função
 `salvar_pesos_neurais` valida e atualiza o JSON com os resultados da execução.
 A exportação acontece antes da interação, para não depender do teclado.
 
-## Contrato de exportação para o motor — RF33
+## Contrato de exportação para o motor
 
 O esquema tem `schema_version: "1.0"`, `experimento: "and_bipolar"`, versão do
 experimento, `dtype_calculo: "float64"`, ordem dos pesos, convenções de entrada
@@ -114,20 +129,24 @@ Ela recalcula as quatro combinações e retorna `apto_para_ativacao` e
 `divergencias` por modelo. O arquivo é lido de volta e validado após a exportação.
 Declarar `correto: true` no arquivo não substitui essa verificação.
 
-O motor poderá carregar o JSON com a biblioteca padrão e usar
-`documento["modelos"][nome]["pesos"]`, preservando a ordem e a precisão. Antes
-da ativação, deverá aplicar a validação de contrato e repetir as quatro
-predições. Em cada avaliação, `x1` será solicitação de atendimento e `x2`,
-admissibilidade; o resultado será elegibilidade, sem porcentagem de confiança.
+O motor carrega o JSON ao iniciar, valida o contrato e recalcula as quatro
+predições antes de permitir a ativação. Em cada avaliação, `x1` representa uma
+solicitação de atendimento e `x2`, a admissibilidade. O resultado indica
+se a fase é elegível; não é uma porcentagem de confiança.
 
-O Marco M7 conecta o artefato ao motor na inicialização do servidor. O seletor
-na aba Redes neurais permite ativar modelos validados e o painel direito mostra
-os cálculos oficiais para cada fase. As regras de prioridade e integridade continuam sob a
-autoridade do motor; aprender AND não demonstra ganho de desempenho urbano.
+Na interface, com o modo Regras ativo, abra **Regras → Para estudar: lógica AND**,
+escolha o modelo e clique em **Aplicar ao exercício**. Os cálculos aparecem em
+**Ver cálculos da AND**. A prioridade e a proteção das transições continuam no
+motor. Aprender AND não demonstra ganho de desempenho no trânsito.
+
+O arquivo utilizado pelo motor é `pesos_neurais.json`, na raiz. A antiga cópia
+`pesos_and.json` foi guardada no [histórico](../docs/historico/README.md).
+Os pesos do outro treinamento, aplicado ao trânsito, ficam em
+[experimento_transito](../experimento_transito/README.md).
 
 ## Referências
 
-As Seções 11 e 12 de [requisitos.md](../requisitos.md) definem os algoritmos e
+As Seções 11 e 12 da [especificação original](../docs/historico/requisitos-2026-09-13.md) definem os algoritmos e
 parâmetros. As operações de infraestrutura são
 [numpy.dot](https://numpy.org/doc/stable/reference/generated/numpy.dot.html) e
 [matplotlib.pyplot.subplots](https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.subplots.html).

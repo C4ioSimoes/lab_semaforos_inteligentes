@@ -1,4 +1,7 @@
-# Quatro paradigmas — incremento M5
+# Quatro paradigmas
+
+Para apresentar, siga o [roteiro de Paradigmas](../docs/apresentacao/paradigmas.md).
+Comece por `contratos.py`, depois leia os quatro arquivos abaixo.
 
 Quatro implementações independentes da política `prioridades_demanda_v1`:
 
@@ -12,15 +15,16 @@ Quatro implementações independentes da política `prioridades_demanda_v1`:
 `contratos.py` compartilha somente tipos imutáveis. Nenhum dos quatro módulos chama
 o algoritmo de seleção de outro ou uma função de ranking comum. Geometria,
 conflitos, admissibilidade física e execução de sinais continuam compartilhados
-no motor, conforme RF26. A baseline continua separada em `motor_python/controle.py`.
+no motor. A referência de tempos fixos fica em `motor_python/controle.py`.
+`__init__.py` seleciona a implementação solicitada. `adaptador_prolog.py` faz a
+comunicação com o processo Prolog; não substitui suas regras por código Python.
 
 ## Política versionada
 
-A instrução do incremento M5 pediu **maior demanda** no último critério. Isso
-altera o item 5 original da Seção 9, que começava pela solicitação mais antiga.
-Este incremento segue a instrução mais recente e registra a variante como
-`prioridades_demanda_v1`; os quatro paradigmas usam exatamente essa mesma variante.
-O documento de requisitos original foi preservado.
+A política atual usa maior demanda como critério ordinário, seguida de
+antiguidade em caso de empate. A [especificação original](../docs/historico/requisitos-2026-09-13.md)
+usava antiguidade como primeiro critério ordinário. As quatro implementações
+seguem a mesma versão atual, descrita abaixo.
 
 1. Preservar movimentos iniciados, tempos e transições. O motor protege as
    ocupações. Nenhuma preferência cria permissão sem validação RN06.
@@ -62,8 +66,8 @@ indicador de elegibilidade usa o avaliador selecionado no motor: AND de referên
 Perceptron ou Adaline. O resultado governa a abertura após as guardas de integridade,
 sem alterar as regras de prioridade implementadas em cada paradigma.
 
-Os tempos do M4 permanecem: atendimento de 10 s (mínimo e máximo iguais neste
-incremento), amarelo veicular de 3 s e liberação mínima de 1 s, prolongada por
+No modo Regras, os tempos são: atendimento de 10 s,
+amarelo veicular de 3 s e liberação mínima de 1 s, prolongada por
 ocupação conflitante. Durante o atendimento mínimo, o controlador propõe manter.
 Após esse período, seleciona o destino por prioridade. Se somente a fase atual
 possui demanda, ela pode ser selecionada novamente, mas cumpre encerramento e
@@ -77,13 +81,13 @@ a máquina semafórica ou seus tempos, as filas, os IDs, o relógio ou o RNG.
 
 ## Emergências explícitas
 
-A inserção manual de ambulância oferece `Solicitar emergência`. O payload inclui
+A inserção manual de ambulância pelo WebSocket aceita um pedido de emergência. O payload inclui
 `solicitacao_prioritaria: true/false`; omitir significa falso. Atribuir o pedido a
 outra categoria é rejeitado. Ambulâncias automáticas recebem solicitação explícita
 verdadeira no gerador, registrada em `emergencia_solicitada`, sem novo sorteio.
 O interruptor global decide se a política considera essa prioridade; desligá-lo
 não apaga a solicitação. A baseline ignora prioridades adaptativas. Não há comando
-separado de emergência para um veículo que já foi inserido neste incremento.
+separado de emergência para um veículo que já foi inserido.
 
 ## Verificação e alcance
 
@@ -94,10 +98,11 @@ travessia, demanda vazia, renovação de fase e comandos inválidos/deduplicados
 A integração WebSocket e o navegador testam seleção, parâmetros, confirmação,
 edições durante ticks, reconexão e solicitação explícita de emergência.
 
-A comparação simultânea na interface (RF27) e os avaliadores neurais
-não estão incluídos neste incremento. A equivalência dos quatro paradigmas é
-verificada automaticamente nos testes. Registros permanecem em memória; replay persistido e
-comparação formal entre políticas continuam pendentes.
+A equivalência dos quatro paradigmas é verificada pelos testes. A comparação de
+políticas diferentes está em [experimento_transito](../experimento_transito/README.md),
+com o imperativo representando a política comum dos paradigmas. O avaliador AND
+já está integrado ao modo Regras. Não há comparação simultânea de execuções na
+interface nem replay persistido.
 
 ## Lógico: SWI-Prolog e MQI
 

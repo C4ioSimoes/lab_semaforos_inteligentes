@@ -1,9 +1,10 @@
 # Guia técnico — Laboratório de Semáforos Inteligentes
 
-Motor FastAPI e cena Three.js dos incrementos M1–M7, com relógio oficial Python
+Motor FastAPI e cena Three.js, com relógio oficial Python
 (Δt = 0,1 s), inserção manual de quatro categorias veiculares e pedestres,
 retenção no vermelho, filas sem sobreposição, demanda automática Poisson e
-controle semafórico com baseline fixa e quatro paradigmas de prioridade adaptativa.
+controle semafórico com tempos fixos, quatro paradigmas, redes aplicadas e modo automático.
+Para a apresentação, use o [roteiro das disciplinas](apresentacao/README.md); os valores atuais estão em [Parâmetros](parametros.md).
 Posições, admissões, solicitações e taxas observadas pertencem exclusivamente ao
 Python. Ambiente Python validado: 3.12.3.
 
@@ -46,7 +47,8 @@ o motivo. Reinicie o motor para iniciar outro ensaio; não existe fallback autom
 ## Comunicação
 
 Conecte a interface a `ws://127.0.0.1:8000/ws`. A conexão recebe imediatamente um
-objeto JSON `Instantaneo`, sem envelope adicional, e um novo estado por passo.
+objeto JSON `Instantaneo`, sem envelope adicional. Em 1× há uma atualização por passo;
+na execução acelerada, a publicação periódica é limitada a 20 estados por segundo real.
 Confirmações de comandos usam `tipo: "confirmacao_comando"`.
 O [protocolo 1.8](../motor_python/PROTOCOLO.md) documenta os payloads de inserção e
 configuração, posições oficiais e diagnóstico de demanda. Os nomes dos contratos
@@ -59,7 +61,8 @@ simulado nem elimina passos. Os clientes compartilham a mesma execução e receb
 cópias dos estados. A conexão não cria outro relógio.
 
 O transporte aceita `inserir_participante`, `configurar_gerador` e
-`configurar_controlador` e `configurar_modelo_neural`. O motor valida,
+`configurar_controlador`, `configurar_modelo_neural`, `configurar_operacao`,
+`configurar_velocidade` e `resetar_simulacao`. O motor valida,
 deduplica por `command_id`, aplica no próximo passo e confirma ao solicitante.
 Veículos selecionam categoria e N/S/L/O; pedestres selecionam travessia, lado e
 quantidade. Todos aguardam espaço na entrada. Veículos param antes da retenção
@@ -69,13 +72,12 @@ A baseline alterna Norte/Sul → Leste/Oeste → Pedestres: 10 s de atendimento,
 conflitante prolonga a liberação; quem já iniciou termina com proteção.
 O amarelo bloqueia novas entradas neste modelo didático simplificado.
 
-Na barra **Geração aleatória**, um interruptor liga/desliga veículos e pedestres
-simultaneamente; **Intensidade do trânsito** ajusta as taxas durante a execução.
+No painel **Trânsito**, **Entrada de trânsito** liga/desliga novas chegadas.
+**Incluir pedestres** pode ser desmarcado para impedir apenas novas chegadas de pedestres; **Quantidade de trânsito** ajusta as taxas durante a execução.
 A geração começa desligada. Desligar impede novas chegadas; pedidos já aceitos
-continuam sendo atendidos. O painel esquerdo mostra somente conexão, tempo, fase,
+continuam sendo atendidos. A cena ocupa toda a janela; **Dados** e **Trânsito** recolhem os painéis translúcidos. O painel de dados mostra conexão, tempo, fase,
 contagens, vazão e espera média. Inserção manual permanece disponível pela API.
-Paradigmas, redes neurais, diagnósticos e downloads ficam em **Configurações do
-experimento**. Veja [implementação e trechos de código](../cena_3d/README.md).
+Os modos ficam em **Escolher controle dos sinais**. Downloads ficam em **Salvar resultados**; diagnósticos, em **Detalhes técnicos**. Veja [implementação e trechos de código](../cena_3d/README.md).
 
 Um cliente que acumule 100 mensagens pendentes tem o fluxo encerrado com código 1013 e deve reconectar
 para obter o estado atual. Esse limite protege o relógio contra clientes lentos.
@@ -101,24 +103,20 @@ python -m pip install -r motor_python/requirements-dev.txt
 python -m pytest -q
 ```
 
-## Limites deste incremento
+## Recursos e limites atuais
 
-Implementado apenas o passo de 0,1 segundo de RF08. Iniciar/pausar/retomar,
-reiniciar, passo manual e velocidades selecionáveis ainda serão implementados.
-Os comandos de inserção já têm confirmação e deduplicação. Por enquanto o relógio
-continua sem clientes; a pausa por perda de conexão do operador e retomada
-explícita da Seção 13 permanecem pendentes.
+O reinício pela interface e a velocidade de 1× a 24× estão implementados.
+Pausa, retomada e avanço manual de um passo não estão disponíveis. O relógio
+continua avançando sem clientes conectados.
 
-Estão pendentes carregamento completo de cenário, conversões adicionais,
-comparação simultânea e perfis de demanda,
-persistência automática entre reinicializações e replay. A baseline não oferece
-prioridade especial a ambulâncias ou ônibus. O incremento cobre a demanda
-e os quatro paradigmas solicitados; não representa a conclusão integral de todos os requisitos
-dos marcos M1–M5.
+Também não há carregamento completo de cenários, conversões adicionais,
+comparação simultânea de execuções na tela, persistência automática ou replay.
+A tabela de comparação disponível na interface vem de ensaios separados.
+A baseline de tempos fixos não considera prioridades de ambulância ou ônibus.
 
 Os limites padrão são 200 ativos, 2.000 pendências e taxa efetiva de até 6.000/min
 por combinação veicular ou travessia. Atingir capacidade interrompe o ensaio com
-motivo e recusas contabilizadas; nenhuma fila é apagada. Reinicie o motor para
+motivo e recusas contabilizadas; nenhuma fila é apagada. Use **Recomeçar simulação** para
 um novo ensaio. Veja as convenções e a medição inicial no protocolo.
 
 Referências de infraestrutura: [WebSockets no FastAPI](https://fastapi.tiangolo.com/advanced/websockets/)
@@ -152,18 +150,15 @@ origem/categoria, ativos e pendentes continuam disponíveis nas exportações.
 Todos os valores vêm do Python.
 
 
-## Selecionar controlador e prioridades (M5)
+## Selecionar controlador e prioridades
 
-Em **Configurações do experimento → Paradigmas**, escolha **Baseline**, **Imperativo**, **Orientado a
-Objetos**, **Funcional** ou **Lógico (Prolog)**. Nos quatro adaptativos, ajuste o limiar de espera e as
-opções **Atender emergências** e **Priorizar ônibus**. Clique em **Aplicar
-controlador**: o motor confirma a aplicação no próximo passo e registra a troca
+Em **Escolher controle dos sinais → Regras**, escolha **Tempos fixos** ou uma das quatro opções de prioridades (Imperativo, Orientado a objetos, Funcional ou Lógico). Nas opções de prioridades, ajuste **Dar prioridade após (segundos)**, **Priorizar ambulâncias** e **Priorizar ônibus**. Clique em **Ativar regras**: o motor confirma a aplicação no próximo passo e registra a troca
 como exploração. Não reinicia o ensaio, a fase, as filas ou o gerador.
 
 A baseline continua sendo o padrão. Os outros quatro implementam a mesma política
 em código independente: proteção dos movimentos/transições → emergências → espera
-acima do limiar → ônibus → maior demanda. Conforme a instrução deste incremento,
-maior demanda é o critério ordinário; isso difere do item 5 original da Seção 9.
+acima do limiar → ônibus → maior demanda. A política atual usa maior demanda
+como critério ordinário; a especificação original usava antiguidade nesse ponto.
 Os desempates e contratos estão em [Controladores](../controladores/README.md).
 
 Para uma ambulância inserida pela API, use `solicitacao_prioritaria`. As
@@ -172,7 +167,7 @@ permite ultrapassar a fila física nem ignorar amarelo, liberação ou pedestres
 As configurações do experimento mostram controlador vigente, proposta e avaliações por fase,
 incluindo maior espera, demanda, critério e motivo de inadmissibilidade.
 
-## Experimento neural (M6)
+## Experimento neural
 
 O [notebook de Perceptron e Adaline](../experimento_neural/and_perceptron_adaline.ipynb)
 executa de forma independente, usando Python, NumPy e Matplotlib. Contém as
@@ -183,20 +178,18 @@ precisão completa e foram verificados nas quatro combinações da AND.
 
 Veja [instalação, reprodução e contrato JSON](../experimento_neural/README.md).
 As dependências do experimento ficam em ambiente próprio. O motor carrega os
-pesos exportados ao iniciar, conforme o Marco M7 abaixo.
+pesos exportados ao iniciar, conforme a seção seguinte.
 
 
-## Integração neural e exportações (M7 — RF33, RF34, RF39)
+## Integração da AND e exportações
 
-Com `pesos_neurais.json` na raiz, inicie o motor normalmente. Na aba **Redes
-neurais**, escolha **AND de referência**, **Perceptron** ou **Adaline** e clique
-em **Aplicar modelo neural**. A troca é confirmada no próximo passo, sem trocar
+Com `pesos_neurais.json` na raiz, inicie o motor normalmente. Com o modo Regras ativo, abra **Regras → Para estudar: lógica AND**, escolha **AND de referência**, **Perceptron** ou **Adaline** e clique em **Aplicar ao exercício**. A troca é confirmada no próximo passo, sem trocar
 o paradigma, reiniciar a simulação ou modificar a demanda. O motor valida
 formato, treinamento, parâmetros, pesos finitos e as quatro combinações AND.
 Modelos inválidos ficam indisponíveis e as divergências aparecem na interface.
 Para carregar um novo arquivo de pesos, reinicie o servidor.
 
-O **Diagnóstico Neural** mostra cada fase, modelo, entradas, pesos completos,
+A seção **Ver cálculos da AND** mostra cada fase, modelo, entradas, pesos completos,
 bias, soma linear, saída bipolar e AND de referência. `x1` é a solicitação:
 demanda pendente nos adaptativos e solicitação programada na baseline fixa.
 `x2` é a admissibilidade calculada pelo motor antes da transição. A elegibilidade
@@ -205,11 +198,11 @@ Amarelo, liberação, tempo mínimo e ocupações continuam sendo validados pelo
 Os resultados não são probabilidades. Os modelos válidos reproduzem a AND;
 a integração não implica superioridade no controle de trânsito.
 
-Em **Configurações do experimento**, **Exportar Eventos (JSON)** baixa
+Em **Salvar resultados**, **Baixar histórico (JSON)** baixa
 `GET http://127.0.0.1:8000/exportar/eventos`, incluindo configurações inicial e
 atual, semente, pesos/metadados, comandos aplicados, eventos, transições de fase,
 participantes ativos e pendentes, métricas e intervalo observado.
-**Exportar Métricas (CSV)** usa `GET /exportar/metricas`: uma série de resumos
+**Baixar planilha (CSV)** usa `GET /exportar/metricas`: uma série de resumos
 acumulados desde zero, amostrada a cada segundo simulado, incluindo também o
 passo exato do download. Há linhas de total, origem, categoria e origem/categoria;
 esses escopos se sobrepõem e não devem ser somados entre si.
@@ -225,9 +218,22 @@ de exportação; dois downloads consecutivos podem cobrir passos diferentes.
 
 Os downloads não pausam o motor. Eventos e séries ficam em memória durante a
 execução: exporte antes de reiniciar o servidor para preservá-los. Não há replay
-nem persistência automática neste incremento. Trocas exploratórias de modelo e
+nem persistência automática. Trocas exploratórias de modelo e
 controlador ficam registradas e devem ser consideradas nas comparações.
 
 ### Resetar sem reiniciar o servidor
 
-O botão **Resetar simulação**, logo abaixo do relógio, zera tempo, veículos, pedestres, filas e métricas. O modo e as configurações de geração são mantidos; se a geração estiver ligada, novos participantes voltarão a chegar. A semente é reiniciada para permitir repetir o experimento. O botão também permite sair de uma interrupção por limite técnico. Para conservar o histórico atual, exporte os dados antes de resetar.
+O botão **Recomeçar simulação**, abaixo dos resultados, zera tempo, veículos, pedestres, filas e métricas. O modo e as configurações de geração são mantidos; se a geração estiver ligada, novos participantes voltarão a chegar. A semente é reiniciada para permitir repetir o experimento. O botão também permite sair de uma interrupção por limite técnico. Para conservar o histórico atual, exporte os dados antes de resetar.
+
+### Acelerar a simulação
+
+Abaixo de **Quantidade de trânsito**, use **Velocidade da simulação**, de **1×**
+a **24×**. A mudança é automática e vale para todos os clientes conectados.
+O valor **Ativa** confirma a velocidade aplicada. O reset mantém essa escolha.
+
+A velocidade acelera o relógio inteiro: semáforos, veículos, pedestres e chegadas.
+As taxas, tempos de espera e métricas continuam em unidades simuladas. Os cálculos
+mantêm passos de 0,1 s e os mesmos resultados para a mesma semente e comandos nos
+mesmos passos. Só as atualizações da tela são limitadas a 20 por segundo real.
+O ritmo alcançado depende do computador; sob carga o motor desacelera, sem pular
+passos ou mudar as regras. Os históricos acumulam mais rápido no tempo real.
