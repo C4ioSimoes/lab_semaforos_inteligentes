@@ -571,6 +571,21 @@ Aplicar `configurar_controlador` retorna ao modo Paradigmas e seus tempos origin
 
 Veja `docs/tres_disciplinas.md` para as políticas, limitações e ensaios reproduzíveis.
 
+### Prioridade de emergência nas redes
+
+Em `modo: "neural"`, pedidos de ambulância com `solicitacao_prioritaria: true`
+têm precedência sobre Perceptron e Adaline. Se outra fase estiver verde, o motor
+inicia seu encerramento no próximo passo, inclusive antes do mínimo normal de 3 s.
+A exceção vale somente para encerrar outro verde adaptativo: amarelo de 3 s,
+liberação mínima de 1 s, elegibilidade e ocupações conflitantes continuam validados.
+A emergência mais antiga mantém sua preferência até ser autorizada. Ambulâncias
+sem solicitação explícita não acionam a exceção; as automáticas têm essa solicitação.
+
+O diagnóstico usa `controle.transito.criterio: "emergencia"` e `comparacao: null`.
+A interface mostra **Emergência prioritária** junto do modo. O Automático e os
+quatro paradigmas mantêm seus tempos e critérios anteriores. A integração AND
+acadêmica não muda.
+
 ## Reset da simulação
 
 `{"command_id":"reset-1","tipo":"resetar_simulacao","parametros":{}}` agenda uma nova execução no mesmo motor e mantém os WebSockets conectados. A confirmação aplicada usa passo zero e é seguida de um instantâneo com novo `run_id`, tempo zero, sinais vermelhos e nenhuma demanda acumulada. Os passos seguintes retomam a geração configurada.

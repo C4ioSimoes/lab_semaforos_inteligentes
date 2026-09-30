@@ -4,6 +4,7 @@ Para apresentar o trabalho, comece pelo [roteiro de apresentação](apresentacao
 
 | Preciso consultar | Documento |
 | --- | --- |
+| Encontrar cada item pedido nos dois enunciados | [Entregas das disciplinas](entregas.md) |
 | O mesmo problema nos quatro paradigmas | [Apresentação de Paradigmas](apresentacao/paradigmas.md) |
 | Perceptron, Adaline e a porta AND | [Apresentação de Redes Neurais](apresentacao/redes_neurais.md) |
 | Valores usados atualmente e onde estão definidos | [Parâmetros](parametros.md) |

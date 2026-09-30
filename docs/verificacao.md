@@ -43,13 +43,13 @@ Depois de confirmar a conclusão dos 45 ensaios, o arquivo foi copiado para `exp
 
 Cada ensaio usou um motor novo e a velocidade atual dos pedestres, **1,7 unidade/s**. A sessão aberta no navegador não foi usada como fonte nem reiniciada. Os valores completos estão no [JSON](../experimento_transito/resultados.json); as médias, no [relatório](../experimento_transito/relatorio.md).
 
-## Identificação dos arquivos
+## Identificação dos arquivos antes da correção de prioridade
 
-Os hashes identificam os arquivos usados nesta revisão. Eles permitem reconhecer uma alteração posterior; não substituem uma nova execução dos ensaios.
+Os hashes desta seção identificam a publicação anterior à correção de prioridade. A identificação dos resultados atuais aparece na seção final. Eles permitem reconhecer uma alteração posterior; não substituem uma nova execução dos ensaios.
 
 | Arquivo | SHA-256 |
 | --- | --- |
-| `experimento_transito/resultados.json` | `7b44f4d76252cc1ed05ec0fdad8b70867db33c65d53e8f415b344d715c33c995` |
+| `docs/historico/antes-prioridade-neural/resultados.json` | `7b44f4d76252cc1ed05ec0fdad8b70867db33c65d53e8f415b344d715c33c995` |
 | `pesos_neurais.json` | `7b2e721df1d0831f9a8794cd571351eb4be9f1a1b713638b96431d959fbd7c58` |
 | `experimento_transito/pesos_transito.json` | `7b848ca6bb3d1be1c071a569023b77e28a8b664dbba6070f7e3d556b524e9aa6` |
 
@@ -68,3 +68,29 @@ interface foi atualizada e o gráfico de desempenho foi gerado a partir dos 45 e
 
 A referência acima à ausência de repetição dos testes de navegador descreve a etapa
 anterior de organização. A suíte completa foi executada nesta preparação da publicação.
+
+## Prioridade de emergência nas redes — 30/09/2026
+
+Perceptron e Adaline agora antecipam o fechamento de outro verde quando há
+emergência solicitada. A espera pelo mínimo normal de 3 s foi retirada desse
+caso; amarelo, liberação, elegibilidade e ocupações continuam protegidos.
+A interface identifica a emergência junto do modo ativo. A regra é aplicada
+pelo motor, sem alterar treinamento ou pesos das redes.
+
+- 370 testes Python aprovados, incluindo antecipação, transições, travessia,
+  manutenção da prioridade mais antiga e preservação dos demais modos.
+- 34 testes de navegador aprovados; compilação da interface aprovada.
+- 45 ensaios de trânsito recalculados. Tempos fixos, imperativo e Automático
+  produziram resultados idênticos aos anteriores; a mudança afeta os modos neurais.
+- Tabelas, gráfico e dados servidos pela interface atualizados em conjunto.
+
+A referência anterior a fontes idênticas descreve apenas a organização que
+precedeu esta correção. Nesta etapa foram alterados controle.py, transito.py e
+motor.py, além da interface e dos testes. Os 15 testes da AND aprovados na revisão
+anterior continuam como registro daquele experimento, que não foi modificado.
+Os resultados anteriores à correção estão em
+[antes-prioridade-neural](historico/antes-prioridade-neural/relatorio.md).
+
+SHA-256 dos resultados após a correção: `fcd8e222b0921d4dd8715f06f5d607255eef39b9ed47a8039a3eb7912463d5c2`.
+
+Assinatura agregada do motor e dos controladores após a correção, calculada pelo mesmo procedimento: `f8dcaecc4262f780f5437785f64042bd35e3ee816911c68b693fb2467b072856`.

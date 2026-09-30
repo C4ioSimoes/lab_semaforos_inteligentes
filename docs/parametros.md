@@ -10,7 +10,7 @@ Conferidos no código em 30/09/2026. Esta página documenta os valores existente
 | Velocidade inicial / permitida | 1× / inteiros de 1× a 24× | [motor.py](../motor_python/motor.py), [modelos.py](../motor_python/modelos.py) |
 | Atualizações da tela na execução acelerada | Até 20 por segundo real | `INTERVALO_PUBLICACAO`, em `motor.py` |
 | Atendimento no modo Regras | 10 s por fase | [controle.py](../motor_python/controle.py), `verde_passos = 100` |
-| Verde mínimo em Rede neural e Automático | 3 s | `MaquinaSemaforica.verde_minimo`, em `controle.py` |
+| Verde mínimo normal em Rede neural e Automático | 3 s; na rede, uma emergência pode antecipar o fechamento | `MaquinaSemaforica.verde_minimo`, em `controle.py` |
 | Verde máximo nos modos aplicados | Sem limite fixo; depende da decisão | `MaquinaSemaforica.verde_maximo` |
 | Amarelo veicular | 3 s | `amarelo_passos = 30` |
 | Liberação entre fases | Pelo menos 1 s; pode aguardar ocupações | `liberacao_passos = 10` |
@@ -27,6 +27,8 @@ Conferidos no código em 30/09/2026. Esta página documenta os valores existente
 Fontes: [modelos.py](../motor_python/modelos.py), [controladores](../controladores/README.md) e [transito.py](../motor_python/transito.py).
 
 No modo Regras, a idade do pedido conta desde a solicitação. Nos modos aplicados, a espera usada na decisão acumula tempo parado e espera externa. São definições diferentes.
+
+Em **Rede neural**, uma emergência solicitada antecipa o encerramento do verde de outra fase, mesmo antes de 3 s. A preferência da rede fica subordinada à emergência mais antiga. O amarelo, a liberação mínima e a conclusão de trajetórias conflitantes continuam obrigatórios. No Automático e nos quatro paradigmas, os tempos mínimos anteriores permanecem.
 
 ## Participantes e geração
 

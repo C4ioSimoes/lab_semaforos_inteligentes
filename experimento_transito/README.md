@@ -18,17 +18,17 @@ Os scripts e os pesos mantêm seus caminhos de execução. Resultados antigos fi
 
 ## Resultados atuais
 
-Ensaios recalculados em **30/09/2026**, com pedestres a **1,7 unidade/s**. O relatório anterior usava 1,4 e foi preservado no histórico. A [verificação](../docs/verificacao.md) registra a origem dos arquivos.
+Ensaios recalculados em **30/09/2026**, com pedestres a **1,7 unidade/s**. O relatório foi recalculado após a prioridade de emergência nas redes. As versões anteriores, incluindo a que usava velocidade 1,4, estão preservadas no histórico. A [verificação](../docs/verificacao.md) registra a origem dos arquivos.
 
 Espera acumulada por participante solicitado, em segundos, na média de três sementes:
 
 | Cenário | Tempos fixos | Imperativo | Perceptron | Adaline | Automático |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Fluxo desbalanceado | 25,63 | 15,85 | 10,12 | 10,00 | 8,89 |
-| Fluxo equilibrado | 13,49 | 11,90 | 12,18 | 12,36 | 10,48 |
-| Inversão de fluxo | 20,22 | 12,70 | 9,22 | 8,44 | 7,88 |
+| Fluxo desbalanceado | 25,63 | 15,85 | 9,95 | 10,26 | 8,89 |
+| Fluxo equilibrado | 13,49 | 11,90 | 12,18 | 12,41 | 10,48 |
+| Inversão de fluxo | 20,22 | 12,70 | 9,31 | 8,46 | 7,88 |
 
-As duas redes reduziram essa espera no fluxo desbalanceado e na inversão. No fluxo equilibrado, o Perceptron aumentou a espera em 2,4% e o Adaline em 3,8% em relação ao imperativo. Os modos aplicados também usam verde variável; a comparação não isola o efeito do treinamento.
+As duas redes reduziram essa espera no fluxo desbalanceado e na inversão. No fluxo equilibrado, o Perceptron aumentou a espera em 2,3% e o Adaline em 4,2% em relação ao imperativo. Os modos aplicados também usam verde variável; a comparação não isola o efeito do treinamento.
 
 O relatório usa os nomes do código: `baseline` = Tempos fixos; `urbano` = Automático. O imperativo representa a política comum dos quatro paradigmas. Os testes verificam a equivalência entre eles.
 

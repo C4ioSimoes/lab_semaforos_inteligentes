@@ -589,7 +589,8 @@ class Motor:
     def _decidir_transito(self):
         proposta, avaliacoes, criterio, calculo, ocupados = self.transito.decidir(self)
         elegivel = next((a["elegivel"] for a in avaliacoes if a["fase"] == proposta.fase), False)
-        self.controle.aplicar(proposta, self._step, ocupados, elegivel=elegivel)
+        self.controle.aplicar(proposta, self._step, ocupados, elegivel=elegivel,
+                              prioridade_emergencia=self.operacao.modo == "neural" and criterio == "emergencia")
         nome = self.operacao.modelo if self.operacao.modo == "neural" else "urbano"
         self._diagnostico_transito = {"modo": self.operacao.modo, "modelo": nome,
             "criterio": criterio, "comparacao": calculo,

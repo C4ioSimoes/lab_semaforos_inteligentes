@@ -135,7 +135,8 @@ class MaquinaSemaforica:
         self.estado, self.fase, self.inicio_passo = estado, fase, passo
         self.registrar("transicao_semaforica", "motor", anterior, {"estado": estado, "fase": fase})
 
-    def aplicar(self, proposta: Proposta, passo: int, ocupados: tuple[str, ...], *, elegivel: bool = True):
+    def aplicar(self, proposta: Proposta, passo: int, ocupados: tuple[str, ...], *, elegivel: bool = True,
+                prioridade_emergencia: bool = False):
         decorrido = passo - self.inicio_passo
         motivo = None
         if proposta.acao not in ("manter", "transicionar", "aguardar") or (proposta.acao != "aguardar" and proposta.fase not in self.fases):
@@ -159,7 +160,10 @@ class MaquinaSemaforica:
             elif decorrido >= self.verde_maximo:
                 motivo = "Tempo máximo de atendimento atingido."
         elif self.estado == "atendimento":
-            if decorrido < self.verde_minimo:
+            # A emergência pode antecipar o fechamento de outro verde adaptativo.
+            # Amarelo, liberação, elegibilidade e ocupações seguem suas guardas.
+            antecipar = prioridade_emergencia and self.adaptativo and proposta.fase != self.fase
+            if decorrido < self.verde_minimo and not antecipar:
                 motivo = "Tempo mínimo de atendimento não cumprido."
             else:
                 proximo = "encerramento" if any(m in VEICULARES for m in self.fases[self.fase]) else "liberacao"

@@ -91,8 +91,10 @@ class ControleTransito:
             criterio = 'fila_e_espera'
         atendimento = motor.controle.estado == 'atendimento'
         minimo = motor._step - motor.controle.inicio_passo < motor.controle.verde_minimo
-        if atendimento and (minimo or escolhida is None or escolhida is atual):
+        emergencia_neural = motor.operacao.modo == 'neural' and emergencia is not None
+        if atendimento and ((minimo and not emergencia_neural) or escolhida is None or escolhida is atual):
             proposta = Proposta('manter', motor.controle.fase,
+                'Manter atendimento da emergência.' if emergencia_neural else
                 'Atendimento mínimo protegido.' if minimo else 'Manter verde enquanto não há vantagem em trocar de fase.')
         elif escolhida:
             proposta = Proposta('transicionar', escolhida['fase'], f'Atender {escolhida["fase"]}: {criterio}.')

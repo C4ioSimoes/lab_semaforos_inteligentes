@@ -125,3 +125,106 @@ def test_travessia_iniciada_permanece_protegida_na_troca(modo):
             viu_bloqueio = True
     assert viu_bloqueio
     assert e.metricas['total']['emergencias_atendidas'] == 1
+
+
+@pytest.mark.parametrize('modelo', ['perceptron', 'adaline'])
+def test_emergencia_neural_antecipa_fechamento_sem_encurtar_transicao(modelo):
+    m = Motor()
+    ativar(m, modelo)
+    inserir(m, 'normal', 'N')
+    for _ in range(10):
+        m.avancar()
+    assert m.controle.estado == 'atendimento' and m.controle.fase == 'F-NS'
+    inserir(m, 'emergencia', 'L', 'ambulancia', True)
+    m.transito.comparar = lambda *a: pytest.fail('Emergência deve prevalecer sobre qualquer saída neural')
+    e = m.avancar()
+    assert e.controle['transito']['criterio'] == 'emergencia'
+    assert e.controle['decisao']['proposta']['fase'] == 'F-LO'
+    assert e.semaforos['N'] == 'amarelo'  # Só 0,1 s de verde foi cumprido.
+    assert e.semaforos['L'] == 'vermelho'
+    inicio = e.step
+    for _ in range(29):
+        e = m.avancar()
+        assert e.semaforos['N'] == 'amarelo'
+        assert e.semaforos['L'] == 'vermelho'
+    for _ in range(10):
+        e = m.avancar()
+        assert all(cor == 'vermelho' for cor in e.semaforos.values())
+    e = m.avancar()
+    assert e.step - inicio == 40  # 3 s de amarelo + 1 s de liberação.
+    assert e.semaforos['L'] == 'verde'
+    # A preferência permanece até a ambulância alcançar a retenção, mesmo
+    # com outra emergência mais nova e pedidos normais em outra fase.
+    inserir(m, 'emergencia-mais-nova', 'N', 'ambulancia', True)
+    ambulancia = next(p for p in e.participantes if p.categoria == 'ambulancia')
+    for _ in range(200):
+        e = m.avancar()
+        assert e.controle['decisao']['proposta']['fase'] == 'F-LO'
+        assert e.semaforos['L'] == 'verde'
+        p = next(p for p in e.participantes if p.id == ambulancia.id)
+        if p.instante_autorizacao is not None:
+            break
+    else:
+        pytest.fail('Ambulância prioritária não recebeu autorização')
+    m.fechar()
+
+
+@pytest.mark.parametrize('modelo', ['perceptron', 'adaline'])
+def test_emergencia_neural_fecha_pedestres_mas_aguarda_travessia_iniciada(modelo):
+    m = Motor()
+    ativar(m, modelo)
+    comando(m, 'pedestre', 'inserir_participante', categoria='pedestre', travessia='N-TR', lado='A', quantidade=1)
+    for _ in range(10):
+        e = m.avancar()
+    assert e.semaforos_pedestres['N-TR'] == 'verde'
+    assert e.participantes[0].estado == 'em_travessia'
+    inserir(m, 'emergencia', 'N', 'ambulancia', True)
+    e = m.avancar()
+    assert e.semaforos_pedestres['N-TR'] == 'vermelho'
+    assert e.semaforos['N'] == 'vermelho'
+    bloqueou = False
+    for _ in range(250):
+        # A decisão usa as ocupações do início do passo: não pode liberar
+        # a ambulância enquanto o pedestre ainda atravessa.
+        ocupado = bool(e.ocupacoes['N-TR'])
+        e = m.avancar()
+        if ocupado:
+            assert e.semaforos['N'] == 'vermelho'
+            bloqueou = True
+        assert all(not m.controle.conflitos[a][b] for a in m.controle.permissoes()
+                   for b, ids in e.ocupacoes.items() if ids)
+    assert bloqueou
+    assert e.metricas['total']['emergencias_atendidas'] == 1
+    m.fechar()
+
+
+@pytest.mark.parametrize('modo,emergencia', [('perceptron', False), ('adaline', False), ('urbano', True)])
+def test_minimo_normal_preservado_sem_preempcao_neural(modo, emergencia):
+    m = Motor()
+    ativar(m, modo)
+    inserir(m, 'normal', 'N')
+    for _ in range(10):
+        m.avancar()
+    inserir(m, 'ambulancia', 'L', 'ambulancia', emergencia)
+    for _ in range(29):
+        e = m.avancar()
+        assert e.semaforos['N'] == 'verde'
+    m.fechar()
+
+
+def test_preempcao_nao_altera_minimo_fixo_nem_libera_ocupacao_ou_fase_inelegivel():
+    c = MaquinaSemaforica(ConfiguracaoControle(), lambda *a: None)
+    c.aplicar(Proposta('transicionar', 'F-NS', 'teste'), 10, ())
+    c.aplicar(Proposta('transicionar', 'F-LO', 'teste'), 11, (), prioridade_emergencia=True)
+    assert c.estado == 'atendimento'  # Referência e paradigmas preservados.
+    c.adaptativo = True
+    c.aplicar(Proposta('transicionar', 'F-LO', 'teste'), 12, (), prioridade_emergencia=True)
+    assert c.estado == 'encerramento'
+    c.aplicar(Proposta('transicionar', 'F-LO', 'teste'), 42, (), prioridade_emergencia=True)
+    assert c.estado == 'liberacao'
+    c.aplicar(Proposta('transicionar', 'F-LO', 'teste'), 52, ('N-seguir_em_frente',), prioridade_emergencia=True)
+    assert c.estado == 'liberacao'
+    c.aplicar(Proposta('transicionar', 'F-LO', 'teste'), 53, (), elegivel=False, prioridade_emergencia=True)
+    assert c.estado == 'liberacao'
+    c.aplicar(Proposta('transicionar', 'F-LO', 'teste'), 54, (), prioridade_emergencia=True)
+    assert c.estado == 'atendimento' and c.fase == 'F-LO'

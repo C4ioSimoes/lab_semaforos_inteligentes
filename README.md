@@ -9,7 +9,7 @@
 ![Three.js](https://img.shields.io/badge/Three.js-3D-222222?logo=threedotjs&logoColor=white)
 ![Prolog](https://img.shields.io/badge/SWI--Prolog-L%C3%B3gica-B33B2E)
 
-[Desempenho](#desempenho-medido) · [Paradigmas](#quatro-paradigmas-o-mesmo-problema) · [Redes neurais](#redes-neurais-perceptron-e-adaline) · [Executar](#executar-localmente) · [Apresentação](docs/apresentacao/README.md)
+[Desempenho](#desempenho-medido) · [Paradigmas](#quatro-paradigmas-o-mesmo-problema) · [Redes neurais](#redes-neurais-perceptron-e-adaline) · [Executar](#executar-localmente) · [Apresentação](docs/apresentacao/README.md) · [Entregas das disciplinas](docs/entregas.md)
 
 </div>
 
@@ -52,9 +52,9 @@ Espera acumulada por participante solicitado, em segundos; **menor é melhor**:
 
 | Cenário | Tempos fixos | Imperativo | Perceptron | Adaline | Automático | Redução do Automático¹ |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Fluxo desbalanceado | 25,63 | 15,85 | 10,12 | 10,00 | **8,89** | **43,9%** |
-| Fluxo equilibrado | 13,49 | 11,90 | 12,18 | 12,36 | **10,48** | **12,0%** |
-| Inversão de fluxo | 20,22 | 12,70 | 9,22 | 8,44 | **7,88** | **37,9%** |
+| Fluxo desbalanceado | 25,63 | 15,85 | 9,95 | 10,26 | **8,89** | **43,9%** |
+| Fluxo equilibrado | 13,49 | 11,90 | 12,18 | 12,41 | **10,48** | **12,0%** |
+| Inversão de fluxo | 20,22 | 12,70 | 9,31 | 8,46 | **7,88** | **37,9%** |
 
 ¹ Em relação ao imperativo, que representa a política comum dos quatro paradigmas. Médias das sementes 42, 73 e 101; percentuais calculados antes do arredondamento.
 
@@ -103,6 +103,20 @@ No OO, `DemandaDaFase`, as classes de regras e `PoliticaPrioridades` dividem o t
 
 Os [testes de paradigmas](tests/test_paradigmas.py) comparam prioridades, empates, 500 estados aleatórios e execuções completas. Essa equivalência permite discutir organização e manutenção do código sem atribuir diferenças de trânsito à sintaxe do paradigma. A referência **Tempos fixos** usa outra política e fica em [controle.py](motor_python/controle.py).
 
+### Por que cada paradigma se adapta de um jeito?
+
+A seleção de uma fase pode ser tratada como transformação de um estado em uma proposta. Isso favorece funções puras e consultas lógicas: a mesma entrada pode ser verificada sem mover nenhum participante. Já a evolução do cruzamento envolve relógio, filas e efeitos ordenados, que o motor coordena de forma imperativa e orientada a objetos. Essa divisão permite comparar a decisão sem duplicar toda a simulação.
+
+| Mudança no problema | Imperativo | Orientado a objetos | Funcional | Lógico |
+| --- | --- | --- | --- | --- |
+| Acrescentar uma prioridade | Novo ramo e, se necessário, acumulador | Nova regra na sequência da política | Nova condição e chave de seleção | Nova cláusula e fato de precedência |
+| Explicar por que uma fase venceu | Acompanhar variáveis e comparações | Acompanhar demanda, regra e selecionador | Examinar os valores de cada transformação | Acompanhar predicados e a chave ordenada |
+| Preservar equivalência | Conferir os ramos e desempates | Conferir ordem das regras e contratos | Conferir composição e ausência de efeitos | Conferir ordem das cláusulas, cortes e desempates |
+
+O imperativo é direto para esta política curta, mas suas variáveis ficam mais difíceis de acompanhar quando surgem muitas regras. O OO facilita localizar responsabilidades, com o custo de mais estrutura. O funcional torna a decisão fácil de testar, mas expressões compostas podem ficar densas. O lógico descreve bem relações e restrições, enquanto o transporte entre processos e o controle de falhas exigem trabalho adicional.
+
+A escolha do paradigma não muda, por si só, a eficiência do trânsito: aqui as quatro versões seguem a mesma política. Os ganhos do **Automático** vêm de outra política de atendimento e de seus tempos variáveis, e não de uma superioridade automática de um estilo de programação.
+
 [Contrato e desempates](controladores/README.md) · [Roteiro para apresentar Paradigmas](docs/apresentacao/paradigmas.md)
 
 ## Redes neurais: Perceptron e Adaline
@@ -137,9 +151,62 @@ Ambos começam com pesos zero, taxa **η = 0,1**, mesma ordem de amostras e limi
 
 O Adaline terminou pelo limite de épocas: SSE final de aproximadamente **1,01822337** e última variação de **0,0000206593**, acima da tolerância. Acertar as quatro classes não significa zerar o erro linear. As atualizações por amostra também não garantem queda monotônica do SSE; o histórico registra 55 aumentos entre épocas.
 
+A AND é linearmente separável para classificação, mas seus quatro alvos bipolares não podem ser reproduzidos exatamente por uma única função afim. Ajustar `(0,0)`, `(1,0)` e `(0,1)` para −1 exigiria `w₀ = −1` e `w₁ = w₂ = 0`, o que também daria −1 em `(1,1)`. Assim, pode haver separação correta das classes e, ao mesmo tempo, erro quadrático residual no Adaline.
+
 A fronteira de decisão de ambos é `w₀ + w₁x₁ + w₂x₂ = 0`. Os [pesos exportados](pesos_neurais.json) preservam a precisão completa: no Perceptron, uma entrada ficou muito próxima da fronteira, e arredondar o bias pode mudar sua classificação.
 
 O [notebook](experimento_neural/and_perceptron_adaline.ipynb) reúne treinamento, métricas por época, tabela de pesos, retas, comparação e predição interativa com tratamento de entradas inválidas. No laboratório, **Regras → Para estudar: lógica AND** usa pedido de atendimento e admissibilidade como entradas; os modelos reproduzem a conjunção que define elegibilidade.
+
+#### Pesos finais e retas de decisão
+
+| Modelo | w₀ (bias) | w₁ | w₂ | Épocas | Reta de decisão, com coeficientes arredondados |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Perceptron | −0,400000 | 0,400000 | 0,200000 | 4 | `−0,400000 + 0,400000·x₁ + 0,200000·x₂ = 0` |
+| Adaline | −1,553960 | 1,109961 | 1,054341 | 100 | `−1,553960 + 1,109961·x₁ + 1,054341·x₂ = 0` |
+
+Os coeficientes acima usam seis casas para leitura. Para reproduzir as predições, use os [pesos completos](pesos_neurais.json), especialmente o bias do Perceptron `−0.4000000000000001`.
+
+![Retas de decisão aprendidas para as quatro combinações da AND](experimento_neural/artefatos/retas_decisao.png)
+
+<details>
+<summary><strong>Tabela exportada pelo notebook e versões para apresentação</strong></summary>
+
+![Tabela de pesos finais, épocas e equações das retas de decisão](experimento_neural/artefatos/tabela_pesos.png)
+
+As figuras estão disponíveis em PNG e SVG: [curvas](experimento_neural/artefatos/curvas_aprendizado.svg), [tabela](experimento_neural/artefatos/tabela_pesos.svg) e [retas](experimento_neural/artefatos/retas_decisao.svg).
+
+</details>
+
+#### Comparação pedida no trabalho — 13 linhas
+
+A resposta abaixo também está no notebook, junto dos cálculos e gráficos.
+
+O Perceptron mede o erro de classificação **depois** de aplicar a função sinal à soma ponderada.<br>
+Sua atualização usa $d-y$, enquanto o gráfico conta quantas classificações estão erradas em cada época.<br>
+Essa contagem é inteira e muda em saltos quando uma amostra atravessa a fronteira de decisão.<br>
+Corrigir uma amostra pode modificar a classificação de outra, causando oscilações entre épocas.<br>
+Por isso a curva pode ser irregular, apresentar patamares ou aumentar antes de chegar a zero.<br>
+O Adaline mede o resíduo $d-u$ na saída **linear**, antes de qualquer aplicação do sinal.<br>
+A regra delta usa a magnitude desse resíduo para ajustar os pesos a cada amostra.<br>
+Seu gráfico mostra $SSE=\sum_i(d_i-\mathbf{w}\cdot\mathbf{x}_i)^2$, recalculado ao final da época.<br>
+O SSE é uma função quadrática contínua dos pesos, ao contrário da contagem discreta do Perceptron.<br>
+Com uma taxa adequada, os ajustes graduais costumam produzir uma curva visualmente mais suave.<br>
+Suavidade não garante queda monotônica: atualizações por amostra e taxa fixa podem elevar o SSE.<br>
+Nesta execução, o Adaline chega a 100 épocas sem satisfazer $|\Delta SSE|<10^{-6}$, embora acerte a AND.<br>
+SSE residual e erro de classificação são distintos; no Adaline, o sinal só entra na predição final.
+
+#### Predição interativa
+
+Na última célula do notebook, `interagir()` solicita `x1` e `x2` e mostra a soma linear e a classe de **ambos os modelos** para o mesmo par de entradas. O laço é compartilhado para facilitar a comparação. Aceita `0`, `1` ou `sair`; entradas inválidas, como texto ou valores fora do domínio, repetem a pergunta sem encerrar o programa.
+
+| Experimente | Resultado esperado |
+| --- | --- |
+| `x1 = 0`, `x2 = 0` | Perceptron e Adaline retornam −1 |
+| `x1 = 1`, `x2 = 1` | Perceptron e Adaline retornam +1 |
+| `abc`, `0.5` ou `2` em uma entrada | Mensagem de entrada inválida e nova solicitação |
+| `sair` em qualquer entrada | Encerramento do laço |
+
+[Como abrir o notebook](experimento_neural/README.md) · [Localização de cada requisito dos enunciados](docs/entregas.md)
 
 ### 2. Extensão: preferência neural no trânsito
 
@@ -152,6 +219,8 @@ saída +1 → prefere a fase candidata
 saída −1 → conserva a preferência atual
 ```
 
+**Emergências prevalecem sobre as duas redes.** Uma ambulância com solicitação de emergência antecipa o encerramento do verde de outra fase, sem aguardar os 3 s mínimos normais. O amarelo de 3 s, a liberação mínima de 1 s e a conclusão das travessias conflitantes continuam obrigatórios. Entre emergências, a mais antiga tem precedência; sua fase é favorecida até a ambulância receber autorização. Veículos à frente precisam escoar: a prioridade não permite atravessar filas ou sinais fechados.
+
 Os alvos de treinamento seguem a preferência sintética `sinal(Δfila + 0,5·Δespera + 0,2·Δaproximação − 0,12·troca)`, usando diferenças já normalizadas. A rede aprende essa preferência supervisionada; não recebe dados de uma cidade nem aprende por reforço.
 
 | Modelo aplicado | Épocas | Acerto no teste sintético |
@@ -159,7 +228,16 @@ Os alvos de treinamento seguem a preferência sintética `sinal(Δfila + 0,5·Δ
 | Perceptron | 70 | 100% |
 | Adaline | 2 | 93,75% |
 
-Esses percentuais medem imitação da preferência, enquanto o relatório de trânsito mede espera e atendimento. No cenário equilibrado, por exemplo, as redes aumentaram a espera em **2,4%** e **3,8%** frente ao imperativo. Os modos aplicados usam também verde variável, por isso os ensaios não isolam o efeito do aprendizado.
+<details>
+<summary><strong>Curvas do treinamento aplicado ao trânsito</strong></summary>
+
+![Curvas de aprendizado de Perceptron e Adaline no conjunto sintético de preferências de trânsito](experimento_transito/aprendizado.png)
+
+Este gráfico pertence à extensão de trânsito. O gráfico exigido pelo enunciado é o do experimento AND apresentado acima.
+
+</details>
+
+Esses percentuais medem imitação da preferência, enquanto o relatório de trânsito mede espera e atendimento. No cenário equilibrado, por exemplo, as redes aumentaram a espera em **2,3%** e **4,2%** frente ao imperativo. Os modos aplicados usam também verde variável, por isso os ensaios não isolam o efeito do aprendizado.
 
 [Experimento AND](experimento_neural/README.md) · [Treinamento aplicado](experimento_transito/treinar.py) · [Roteiro para apresentar Redes Neurais](docs/apresentacao/redes_neurais.md)
 
@@ -263,7 +341,7 @@ Trocar o controlador durante uma sessão acumula resultados de políticas difere
 
 ## Verificação
 
-A verificação reúne **362 testes do back-end**, **15 testes independentes do experimento AND** e **32 testes de navegador**, todos aprovados. A compilação de produção da interface também passou. O treinamento aplicado reproduziu os pesos existentes, e os resultados atuais vêm dos 45 ensaios registrados em [docs/verificacao.md](docs/verificacao.md).
+A verificação reúne **370 testes do back-end**, **15 testes independentes do experimento AND** e **34 testes de navegador**, todos aprovados. A compilação de produção da interface também passou. O treinamento aplicado reproduziu os pesos existentes, e os resultados atuais vêm dos 45 ensaios registrados em [docs/verificacao.md](docs/verificacao.md).
 
 ```bash
 # Motor e controladores; requer SWI-Prolog

@@ -4,6 +4,27 @@ const inicial = JSON.parse(execFileSync('.venv/bin/python', ['-c',
   'from motor_python.motor import Motor; m=Motor(); print(m.avancar().model_dump_json())'],
   { cwd: '..', encoding: 'utf8' }).toString());
 
+for (const modelo of ['perceptron', 'adaline']) {
+  test(`${modelo} identifica prioridade de emergência e volta ao diagnóstico normal`, async ({ page }) => {
+    let socket: any;
+    const estado = structuredClone(inicial);
+    estado.controle.operacao = { modo: 'neural', modelo };
+    estado.controle.transito = { modo: 'neural', modelo, criterio: 'emergencia', comparacao: null };
+    await page.routeWebSocket('**/ws', ws => { socket = ws; ws.send(JSON.stringify(estado)); });
+    await page.goto('/');
+    await expect(page.locator('#modo-ativo')).toContainText('Emergência prioritária');
+    await page.locator('#configuracoes-experimento > summary').click();
+    await page.getByRole('tab', { name: 'Rede neural', exact: true }).click();
+    await page.locator('#detalhes-rede > summary').click();
+    await expect(page.locator('#calculo-transito')).toContainText('liberar a via da ambulância');
+    estado.step++;
+    estado.controle.transito.criterio = 'preferencia_neural';
+    socket.send(JSON.stringify(estado));
+    await expect(page.locator('#modo-ativo')).not.toContainText('Emergência');
+    await expect(page.locator('#calculo-transito')).toContainText('Sem comparação');
+  });
+}
+
 test('abas não ativam políticas; ativação urbana é explícita e sincronizada', async ({ page }) => {
   let socket: any;
   const comandos: any[] = [];

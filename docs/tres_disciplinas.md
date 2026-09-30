@@ -62,7 +62,7 @@ y = +1 se u ≥ 0; caso contrário, −1
 
 O treinamento usa 2.400 exemplos **sintéticos**, rotulados pela preferência `sinal(Δfila + 0,5·Δespera + 0,2·Δaproximação − 0,12·troca)`, e 1.200 exemplos separados para teste. A semente é 20260928. Ambas usam inicialização zero, η=0,1 e até 100 épocas, com as mesmas regras de aprendizagem do experimento acadêmico. Não são dados coletados de uma cidade, aprendizagem por reforço ou uma otimização comprovada do trânsito. A rede aprende a imitar essa preferência, com erros e pesos diferentes. As diferenças sintéticas de treino variam entre −1 e +1 após normalização; situações maiores na simulação exigem extrapolação e não têm acurácia garantida.
 
-Emergências e espera prolongada são prioridades explícitas compartilhadas pelos modos aplicados. As redes não são responsáveis pela proteção contra conflitos. O ganho em relação aos paradigmas vem do conjunto **preferência de atendimento + verde variável**, e não prova superioridade intrínseca de uma rede sobre qualquer algoritmo de regras.
+Emergências e espera prolongada são prioridades explícitas compartilhadas pelos modos aplicados. Nas redes, uma emergência solicitada também antecipa o fechamento de outro verde, sem esperar o mínimo normal de 3 s. Perceptron e Adaline só retomam as comparações ordinárias quando não há emergências pendentes. Amarelo, liberação e trajetórias já ocupadas continuam protegidos. As redes não são responsáveis pela proteção contra conflitos. O ganho em relação aos paradigmas vem do conjunto **preferência de atendimento + verde variável**, e não prova superioridade intrínseca de uma rede sobre qualquer algoritmo de regras.
 
 Execute a partir da raiz:
 

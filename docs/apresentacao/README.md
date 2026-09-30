@@ -11,6 +11,8 @@ O laboratório simula um cruzamento. O Python controla o tempo, os participantes
 
 Os roteiros usam os dois enunciados fornecidos como referência. Eles não acrescentam exigências às disciplinas. A extensão de trânsito pode ser mostrada ao final, se houver tempo.
 
+O [índice das entregas](../entregas.md) relaciona cada requisito às células do notebook, aos gráficos e aos arquivos de código.
+
 ## Preparação
 
 1. Inicie o sistema seguindo o [README principal](../../README.md). Abra o endereço informado pelo Vite.

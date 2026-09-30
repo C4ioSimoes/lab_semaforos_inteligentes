@@ -80,13 +80,16 @@ export function criarPainelTransito(enviar: (c: ComandoOperacao) => boolean) {
       const regra = atual?.configuracao_controlador?.controlador;
       const nome = op?.modo === 'urbano' ? 'Automático' : op?.modo === 'neural' ? `Rede neural · ${nomesRedes[op.modelo]}`
         : regra ? `Regras · ${nomesControladores[regra]}` : 'aguardando dados';
-      el('modo-ativo').textContent = `Controle: ${nome}`;
+      const emergenciaNeural = op?.modo === 'neural' && atual?.transito?.criterio === 'emergencia';
+      el('modo-ativo').textContent = `Controle: ${nome}${emergenciaNeural ? ' · Emergência prioritária' : ''}`;
       if (atual?.erro_neural_transito) el('resultado-neural-transito').textContent = 'Rede indisponível. Consulte os detalhes abaixo.';
       el('treinamento-transito').textContent = Object.entries(atual?.treinamento_transito ?? {}).map(([nome, m]) =>
         `${nomesRedes[nome] ?? nome}: ${(100*m.acuracia_teste_sintetico).toFixed(1)}% de acerto no teste sintético (${m.epocas} épocas).`).join(' ') + ' Mede o aprendizado, não a redução das filas.';
       const d = atual?.transito;
       const c = d?.comparacao;
-      el('calculo-transito').textContent = c
+      el('calculo-transito').textContent = emergenciaNeural
+        ? 'Prioridade de emergência: liberar a via da ambulância assim que o cruzamento estiver seguro.'
+        : c
         ? `${nomeFase(c.candidata)} ou ${nomeFase(c.atual)}: preferência por ${nomeFase(c.saida === 1 ? c.candidata : c.atual)}. Entradas [${c.entradas.map(x => x.toFixed(2)).join(', ')}] · Pesos [${c.pesos.map(x => x.toFixed(3)).join(', ')}] · Soma ${c.soma_ponderada.toFixed(3)}.`
         : atual?.erro_neural_transito ?? (op?.modo === 'neural' ? 'Sem comparação entre direções neste instante.' : 'Ative a rede para ver as decisões.');
       disponibilidade();
